@@ -27,7 +27,7 @@
   --blue:#2a63d6; --blue-soft:#e2eafb; --yellow:#a77d00; --yellow-soft:#fbf1d4; --green:#1f8049; --green-soft:#ddf1e5;
   --done:rgba(31,128,73,.09); --scrim:rgba(10,12,16,.5); --img-bg:#ffffff;
   --hero:#11141a; --hero-ink:#f3f4f6; --hero-2:#9aa3b0; --hero-line:rgba(255,255,255,.12); --hero-cell:rgba(255,255,255,.08);
-  --glow:rgba(224,68,44,0); --heat-0:#e3e6eb; --shadow:0 1px 2px rgba(16,20,26,.04),0 6px 20px rgba(16,20,26,.05);
+  --glow:rgba(224,68,44,0); --heat-0:#e6e9ee; --body-base:#d3d8df; --sec:#f2b0a3; --shadow:0 1px 2px rgba(16,20,26,.04),0 6px 20px rgba(16,20,26,.05);
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
@@ -40,7 +40,7 @@
   --blue:#5b8cff; --blue-soft:#18233d; --yellow:#e7bb3c; --yellow-soft:#2f2711; --green:#3fbf7a; --green-soft:#12291c;
   --done:rgba(63,191,122,.10); --scrim:rgba(0,0,0,.65); --img-bg:#e9ebee;
   --hero:#13161b; --hero-ink:#eef0f3; --hero-2:#8d96a3; --hero-line:rgba(255,255,255,.09); --hero-cell:rgba(255,255,255,.06);
-  --glow:rgba(255,90,61,.35); --heat-0:#232831; --shadow:none;
+  --glow:rgba(255,90,61,.35); --heat-0:#20252d; --body-base:#2c323c; --sec:#5c2c23; --shadow:none;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0a0c0f; --surface:#13161b; --surface-2:#1a1e25; --line:#232831; --line-strong:#323945;
@@ -49,7 +49,7 @@
   --blue:#5b8cff; --blue-soft:#18233d; --yellow:#e7bb3c; --yellow-soft:#2f2711; --green:#3fbf7a; --green-soft:#12291c;
   --done:rgba(63,191,122,.10); --scrim:rgba(0,0,0,.65); --img-bg:#e9ebee;
   --hero:#13161b; --hero-ink:#eef0f3; --hero-2:#8d96a3; --hero-line:rgba(255,255,255,.09); --hero-cell:rgba(255,255,255,.06);
-  --glow:rgba(255,90,61,.35); --heat-0:#232831; --shadow:none;
+  --glow:rgba(255,90,61,.35); --heat-0:#20252d; --body-base:#2c323c; --sec:#5c2c23; --shadow:none;
   color-scheme:dark}
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -166,6 +166,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
 .bodies{display:flex;justify-content:center;gap:10px}
 .bodies figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px}
 .bodies figcaption{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.mfig{display:flex;justify-content:center;gap:18px;padding:4px 0 2px;background:radial-gradient(60% 55% at 50% 45%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 70%)}
+.mfig figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.mfig figcaption{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.mrows{display:flex;flex-direction:column}
+.mrow{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--line)}
+.mdot{width:12px;height:12px;border-radius:4px;background:var(--accent);margin:3px 0 0 4px;box-shadow:0 0 10px var(--glow)}
+.mdot.sec{background:var(--sec);box-shadow:none}
+.micon{width:20px;height:20px;color:var(--ink-3)}
 .heat-legend{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--ink-3)}
 .heat-legend i{display:block;width:14px;height:6px;border-radius:2px}
 .pr{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);text-decoration:none;color:inherit}
@@ -492,34 +500,89 @@ function prDesc(mode,s){
 }
 const MEDAL={wr:"",r:"y",t:"b",wt:"b",dt:"g"};
 
-/* Original simplified body figure for the muscle heatmap; keys are Free Exercise DB muscle names. */
-const BODY_F={
-  shoulders:["M38 46 q-10 2 -12 14 l10 2 q2 -10 8 -12z","M82 46 q10 2 12 14 l-10 2 q-2 -10 -8 -12z"],
-  chest:["M44 48 h15 v16 q-9 3 -17 -1 q-1 -9 2 -15z","M61 48 h15 q3 6 2 15 q-8 4 -17 1z"],
-  biceps:["M26 62 l10 2 l-2 18 l-9 -2z","M94 62 l-10 2 l2 18 l9 -2z"],
-  forearms:["M25 82 l9 2 l-3 20 l-8 -2z","M95 82 l-9 2 l3 20 l8 -2z"],
-  abdominals:["M47 66 h26 l-2 32 h-22z"],
-  quadriceps:["M45 104 h13 l-1 40 h-11 q-3 -20 -1 -40z","M62 104 h13 q2 20 -1 40 h-11z"],
-  adductors:["M58 104 h4 l-1 22 h-2z"],
-  abductors:["M42 100 l3 4 l-1 16 l-3 -4z","M78 100 l-3 4 l1 16 l3 -4z"],
-  calves:["M46 150 h10 l-1 30 h-8z","M64 150 h10 l-1 30 h-8z"]
-};
-const BODY_B={
-  traps:["M50 40 h20 l8 8 h-36z"],
-  shoulders:["M38 46 q-10 2 -12 14 l10 2 q2 -10 8 -12z","M82 46 q10 2 12 14 l-10 2 q-2 -10 -8 -12z"],
-  lats:["M42 50 h16 v30 q-10 -4 -15 -14z","M62 50 h16 l-1 16 q-5 10 -15 14z"],
-  "middle back":["M54 50 h12 v22 h-12z"],
-  triceps:["M26 62 l10 2 l-2 18 l-9 -2z","M94 62 l-10 2 l2 18 l9 -2z"],
-  forearms:["M25 82 l9 2 l-3 20 l-8 -2z","M95 82 l-9 2 l3 20 l8 -2z"],
-  "lower back":["M50 80 h20 v16 h-20z"],
-  glutes:["M45 98 h14 v16 q-8 2 -14 -2z","M61 98 h14 v14 q-6 4 -14 2z"],
-  hamstrings:["M45 116 h13 l-1 30 h-11z","M62 116 h13 l-1 30 h-11z"],
-  calves:["M46 150 h10 l-1 30 h-8z","M64 150 h10 l-1 30 h-8z"]
-};
-const BODY_SIL=["M52 34 h16 l2 8 h-20z"];
+/* Original anatomical chart figure, 200 × 400 viewBox. Each muscle path is drawn for the figure's left half
+   (viewer's left) and mirrored around x = 100. Keys are Free Exercise DB muscle names. */
+const BODY={
+front:{
+  base:[
+    "M100 12 C112 12 118 22 118 36 C118 48 112 56 106 58 L108 64 L92 64 L94 58 C88 56 82 48 82 36 C82 22 88 12 100 12 Z",
+    "M86 166 C92 172 96 182 100 190 C104 182 108 172 114 166 L118 176 C112 184 106 192 100 196 C94 192 88 184 82 176 Z",
+    "M79 262 C83 258 90 258 94 262 L93 274 C89 278 83 278 79 274 Z",
+    "M80 346 L90 346 C92 352 94 360 92 366 C86 370 76 370 70 366 C72 360 76 352 80 346 Z",
+    "M41 186 C39 194 40 204 44 210 C48 212 52 208 52 202 L52 188 Z",
+    "M53 106 C55 104 58 104 60 106 L60 108 L53 110 Z"
+  ],
+  neck:["M93 56 C94 60 96 64 99 68 L96 69 C93 66 91 62 90 58 Z"],
+  traps:["M92 62 C88 66 80 69 72 71 C78 73 86 73 93 70 L97 68 Z"],
+  shoulders:["M71 72 C62 73 55 78 52 88 C50 96 51 104 53 108 C57 101 61 95 66 91 C68 84 71 78 76 74 Z"],
+  chest:["M77 74 C85 72 93 72 99 75 L99 101 C92 106 82 107 74 103 C69 99 66 95 66 91 C68 84 71 78 77 74 Z"],
+  biceps:["M53 110 C50 118 49 128 50 136 C52 141 57 142 61 139 C63 130 64 119 63 109 C61 104 56 105 53 110 Z"],
+  forearms:["M50 141 C46 152 43 166 41 184 L52 186 C55 172 59 158 61 144 C58 146 53 145 50 141 Z"],
+  abdominals:[
+    "M89 106 C92 105 96 105 99 106 L99 120 L89 120 C88 115 88 110 89 106 Z",
+    "M88 123 L99 123 L99 137 L88 137 Z",
+    "M88 140 L99 140 L99 154 L88 154 Z",
+    "M88 157 L99 157 L99 180 C95 176 91 170 88 164 Z",
+    "M74 106 C78 109 82 110 86 110 L86 162 C81 157 77 150 75 141 C72 129 72 116 74 106 Z"
+  ],
+  abductors:["M74 152 C76 158 80 163 84 166 C81 172 79 178 78 184 C74 180 71 172 71 164 C71 159 72 155 74 152 Z"],
+  adductors:["M88 178 C93 182 97 188 99 196 L98 214 C97 224 95 232 93 238 C91 222 89 206 86 192 Z"],
+  quadriceps:[
+    "M78 186 C74 198 71 212 71 228 C72 242 75 252 80 260 L86 260 C85 244 84 226 84 208 C84 200 82 192 78 186 Z",
+    "M80 182 C84 188 87 196 88 206 C90 222 92 240 92 258 L87 260 C86 244 85 226 85 208 C85 198 83 190 80 182 Z"
+  ],
+  calves:[
+    "M77 278 C72 290 71 306 73 322 C75 334 78 342 80 346 L84 346 C85 330 84 312 83 296 C82 288 80 282 77 278 Z",
+    "M86 280 C90 290 92 304 91 320 C90 330 89 340 88 346 L85 346 C86 330 86 312 85 296 Z"
+  ]
+},
+back:{
+  base:[
+    "M100 12 C112 12 118 22 118 36 C118 48 112 56 106 58 L108 64 L92 64 L94 58 C88 56 82 48 82 36 C82 22 88 12 100 12 Z",
+    "M79 262 C83 258 90 258 94 262 L93 274 C89 278 83 278 79 274 Z",
+    "M80 346 L90 346 C92 352 94 360 92 366 C86 370 76 370 70 366 C72 360 76 352 80 346 Z",
+    "M41 186 C39 194 40 204 44 210 C48 212 52 208 52 202 L52 188 Z"
+  ],
+  neck:["M94 56 L99 58 L99 66 L93 64 Z"],
+  traps:["M99 58 L99 112 C95 104 91 94 88 86 C84 80 78 76 72 72 C80 70 88 66 93 62 Z"],
+  shoulders:["M71 72 C62 73 55 78 52 88 C50 96 51 104 53 108 C57 101 62 95 67 92 C70 86 72 80 76 75 Z"],
+  "middle back":["M86 86 C90 94 94 102 98 112 L98 120 C93 116 88 110 84 104 C82 98 83 92 86 86 Z"],
+  lats:["M70 94 C76 92 81 96 83 104 C88 112 93 118 98 124 L98 148 C92 152 86 154 82 152 C78 140 74 126 70 110 C69 104 69 98 70 94 Z"],
+  "lower back":["M89 152 C93 150 96 150 99 150 L99 172 C95 172 91 170 88 166 Z"],
+  triceps:["M53 110 C50 118 49 128 50 136 C53 141 57 142 61 139 C63 130 64 119 64 110 C62 102 66 96 68 93 C61 96 56 102 53 110 Z"],
+  forearms:["M50 141 C46 152 43 166 41 184 L52 186 C55 172 59 158 61 144 C58 146 53 145 50 141 Z"],
+  glutes:["M80 156 C86 156 93 162 99 170 L99 196 C93 202 85 202 79 198 C74 190 73 178 74 168 C75 162 77 158 80 156 Z"],
+  abductors:["M74 152 C73 158 72 164 74 170 C72 162 72 158 74 152 Z"],
+  hamstrings:[
+    "M78 202 C74 214 72 228 73 242 C74 250 77 256 80 260 L86 260 C86 244 86 226 87 212 C85 208 81 205 78 202 Z",
+    "M88 204 C92 208 96 210 98 212 C97 228 95 244 93 258 L87 260 C87 244 87 226 88 204 Z"
+  ],
+  calves:[
+    "M77 276 C72 286 71 298 73 312 C75 320 79 324 83 322 C84 308 84 292 83 282 C81 279 79 277 77 276 Z",
+    "M85 280 C89 286 92 296 92 308 C91 318 88 322 85 322 C85 308 85 294 85 280 Z",
+    "M75 318 C77 330 79 340 80 346 L88 346 C89 338 90 330 90 320 C87 326 80 326 75 318 Z"
+  ]
+}};
+/* fills: muscle key -> CSS colour; unlisted muscles use the neutral tone */
+function bodyFig(side,fills,label,w){
+  const g=Object.entries(BODY[side]).map(([k,ps])=>{const f=k==="base"?"var(--body-base)":(fills[k]||"var(--heat-0)");const t=k==="base"?"":`<title>${esc(MUSCLES[k]||k)}</title>`;const p=ps.map(d=>`<path d="${d}" fill="${f}">${t}</path>`).join("");return p+`<g transform="matrix(-1 0 0 1 200 0)">${p}</g>`}).join("");
+  return `<figure><svg viewBox="30 8 140 366" width="${w}" height="${Math.round(w*2.614)}" role="img" aria-label="Otot ${label}" stroke="var(--surface)" stroke-width="1.2" stroke-linejoin="round">${g}</svg>${label?`<figcaption>${label}</figcaption>`:""}</figure>`;
+}
 function heatColor(v){return v<=0?"var(--heat-0)":`color-mix(in srgb, var(--accent) ${Math.round(25+v*75)}%, var(--heat-0))`}
-function bodyFig(map,heat,label,w){return `<figure><svg viewBox="16 8 88 178" width="${w}" height="${Math.round(w*2.02)}" role="img" aria-label="Otot ${label}"><g fill="var(--heat-0)"><circle cx="60" cy="24" r="12"/><path d="${BODY_SIL[0]}"/></g>${Object.entries(map).map(([k,ps])=>ps.map(d=>`<path d="${d}" fill="${heatColor(heat[k]||0)}" stroke="var(--surface)" stroke-width="1"><title>${esc(MUSCLES[k]||k)}</title></path>`).join("")).join("")}</svg><figcaption>${label}</figcaption></figure>`}
-function bodies(heat,w){return `<div class="bodies">${bodyFig(BODY_F,heat,"Depan",w||80)}${bodyFig(BODY_B,heat,"Belakang",w||80)}</div>`}
+function heatFills(heat){const f={};Object.entries(heat).forEach(([k,v])=>{if(v>0)f[k]=heatColor(v)});return f}
+function bodies(heat,w){const f=heatFills(heat);return `<div class="bodies">${bodyFig("front",f,"Depan",w||80)}${bodyFig("back",f,"Belakang",w||80)}</div>`}
+/* Per-exercise figure: primary muscles in full accent, supporting muscles faint. */
+function muscleCard(pm,sm,eqName,extra){
+  const f={};sm.forEach(k=>f[k]="var(--sec)");pm.forEach(k=>f[k]="var(--accent)");
+  const names=a=>a.map(m=>`<span class="chip ${pm.includes(m)?"red":""}">${esc(MUSCLES[m]||m)}</span>`).join("");
+  return `<section class="card pad stack mcard"><div class="mfig">${bodyFig("front",f,"Depan",112)}${bodyFig("back",f,"Belakang",112)}</div>
+  ${pm.length||sm.length?"":`<p class="small muted" style="text-align:center">Belum ada data otot untuk gerakan ini. Atur di Edit.</p>`}
+  <div class="mrows">
+  ${pm.length?`<div class="mrow"><span class="mdot"></span><div><div class="label">Otot utama</div><div class="row wrap" style="gap:4px;margin-top:3px">${names(pm)}</div></div></div>`:""}
+  ${sm.length?`<div class="mrow"><span class="mdot sec"></span><div><div class="label">Otot pendukung</div><div class="row wrap" style="gap:4px;margin-top:3px">${names(sm)}</div></div></div>`:""}
+  ${eqName?`<div class="mrow"><svg class="micon"><use href="#i-train"/></svg><div><div class="label">Alat</div><div class="small">${esc(eqName)}</div></div></div>`:""}
+  ${extra||""}</div></section>`;
+}
 const heatLegend=lbl=>`<div class="heat-legend">Sedikit ${[0,.3,.6,1].map(v=>`<i style="background:${heatColor(v)}"></i>`).join("")} ${lbl}</div>`;
 
 /* Session load = duration (min) × session RPE (Foster sRPE). Strava activities use moving time × an RPE estimate. */
@@ -590,7 +653,7 @@ function renderHome(){
     <div class="stat4"><div><b class="num">${W.n}</b><small>Sesi</small></div><div><b class="num">${hm(W.secs)}</b><small>Jam</small></div><div><b class="num">${W.sets}</b><small>Set</small></div><div><b class="num">${W.acts}</b><small>Strava</small></div></div>
     <button class="btn btn-primary btn-lg btn-block" id="startBtn">Mulai latihan</button></section>
   ${nextDayCard()}
-  ${muscleCard()}
+  ${weekMuscleCard()}
   ${prCard()}
   ${loadCard()}
   ${feelCard()}
@@ -640,7 +703,7 @@ function muscleSetsOf(list){
 }
 const muscleSets=sinceMs=>muscleSetsOf(S.sessions.filter(s=>s.start>=sinceMs));
 function sessionHeat(se){const h={};Object.entries(muscleSetsOf([se])).forEach(([k,v])=>h[k]=Math.min(1,v/6));return h}
-function muscleCard(){
+function weekMuscleCard(){
   const m=muscleSets(Date.now()-7*DAY);const rows=Object.entries(m).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const heat={};rows.forEach(([k,v])=>heat[k]=Math.min(1,v/10));
   const untouched=Object.keys(MUSCLES).filter(k=>!m[k]&&k!=="neck").map(k=>MUSCLES[k]);
@@ -818,7 +881,8 @@ function blockMenu(b){
 }
 function exQuick(id){
   const ex=exById(id);if(!ex)return;const h=exHistory(id).slice(-4).reverse();const l=ex.libId&&LIBBY[ex.libId];
-  sheet(ex.name,`${media(ex.libId)}<div class="small muted">${esc(MODES[ex.mode].name)}${eqById(ex.eqId)?" · "+esc(eqById(ex.eqId).name):""}</div>
+  const mu=musclesOf(ex);
+  sheet(ex.name,`${muscleCard(mu.p,mu.s.filter(k=>!mu.p.includes(k)),(eqById(ex.eqId)||{}).name||"Tanpa alat")}${media(ex.libId)}<div class="small muted">${esc(MODES[ex.mode].name)}</div>
   ${l?`<ol class="steps">${l.ins.slice(0,4).map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:""}
   ${h.length?`<table><thead><tr><th>Tanggal</th><th>Set</th></tr></thead>${h.map(x=>`<tr><td style="white-space:nowrap">${fday(x.se.start)}</td><td class="num">${x.sets.map(s=>prevText(s,ex.mode)).join(", ")}</td></tr>`).join("")}</table>`:`<p class="muted">Belum ada riwayat untuk gerakan ini.</p>`}`,"");
 }
@@ -1018,10 +1082,10 @@ function renderSession(id){
 
 /* ---------- shareable summary card (canvas, 1080 × 1350) ---------- */
 function mixHex(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const A=p(a),B=p(b);return "rgb("+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(",")+")"}
-function drawBody(x,map,heat,ox,oy,k){
-  x.save();x.translate(ox,oy);x.scale(k,k);x.translate(-16,-8);
-  x.fillStyle="#262b33";x.beginPath();x.arc(60,24,12,0,Math.PI*2);x.fill();x.fill(new Path2D(BODY_SIL[0]));
-  Object.entries(map).forEach(([m,ps])=>ps.forEach(d=>{const p=new Path2D(d);const v=heat[m]||0;x.fillStyle=v>0?mixHex("#262b33","#ff5a3d",.25+v*.75):"#262b33";x.fill(p);x.strokeStyle="#0d0f12";x.lineWidth=1;x.stroke(p)}));
+function drawBody(x,side,heat,ox,oy,k){
+  x.save();x.translate(ox,oy);x.scale(k,k);x.translate(-30,-8);
+  const paint=()=>Object.entries(BODY[side]).forEach(([m,ps])=>ps.forEach(d=>{const p=new Path2D(d);const v=heat[m]||0;x.fillStyle=m==="base"?"#2c323c":v>0?mixHex("#20252d","#ff5a3d",.25+v*.75):"#20252d";x.fill(p);x.strokeStyle="#0e1013";x.lineWidth=1.2;x.lineJoin="round";x.stroke(p)}));
+  paint();x.translate(200,0);x.scale(-1,1);paint();
   x.restore();
 }
 function fitText(x,t,w){if(x.measureText(t).width<=w)return t;while(t.length>1&&x.measureText(t+"…").width>w)t=t.slice(0,-1);return t+"…"}
@@ -1043,9 +1107,9 @@ async function drawShare(c,se){
   const cw=(W-2*P)/stats.length;
   stats.forEach(([v,l],i)=>{const X=P+i*cw;if(i){x.fillStyle="rgba(255,255,255,.12)";x.fillRect(X-24,y,2,110)}x.fillStyle="#f3f4f6";x.font=`800 88px ${CD}`;x.fillText(v,X,y+74);x.fillStyle="#8d96a3";x.font=`700 24px ${BD}`;x.fillText(l.toUpperCase(),X,y+108)});
   y+=150;x.fillStyle="rgba(255,255,255,.12)";x.fillRect(P,y,W-2*P,2);y+=44;
-  const heat=sessionHeat(se),k=2.05;
-  drawBody(x,BODY_F,heat,P-8,y,k);drawBody(x,BODY_B,heat,P+176,y,k);
-  x.fillStyle="#8d96a3";x.font=`700 22px ${BD}`;x.textAlign="center";x.fillText("DEPAN",P-8+90,y+380);x.fillText("BELAKANG",P+176+90,y+380);x.textAlign="left";
+  const heat=sessionHeat(se),k=1.08;
+  drawBody(x,"front",heat,P-6,y,k);drawBody(x,"back",heat,P+170,y,k);
+  x.fillStyle="#8d96a3";x.font=`700 22px ${BD}`;x.textAlign="center";x.fillText("DEPAN",P+70,y+420);x.fillText("BELAKANG",P+246,y+420);x.textAlign="left";
   const LX=P+400,LW=W-P-LX;let ly=y+10;
   const rows=[];se.blocks.forEach((b,bi)=>b.items.forEach((it,ii)=>{const ex=exById(it.exId)||{mode:"wr",name:"?"};const ds=it.sets.filter(s=>s.done&&s.k!=="w");if(!ds.length)return;const best=ds.reduce((a,s)=>setScore(ex.mode,s)>setScore(ex.mode,a)?s:a,ds[0]);const pr=it.sets.some((s,j)=>prs[bi+":"+ii+":"+j]);rows.push({n:exName(it.exId),v:`${ds.length} set · ${prevText(best,ex.mode)}${ex.mode==="r"?" rep":""}`,pr})}));
   const show=rows.slice(0,7);
@@ -1116,7 +1180,6 @@ function eqSheet(eq){
 }
 function libInfo(l){
   return `<div class="row wrap"><span class="chip">${esc(LIB_EQ[l.eq]||l.eq)}</span><span class="chip">${esc(LIB_CAT[l.cat]||l.cat)}</span><span class="chip">${esc(LVL[l.lvl]||l.lvl)}</span></div>
-  <div class="small"><b>Otot utama:</b> ${esc(l.pm.map(m=>MUSCLES[m]||m).join(", "))}${l.sm.length?`<br><b>Otot pendukung:</b> ${esc(l.sm.map(m=>MUSCLES[m]||m).join(", "))}`:""}</div>
   ${l.ins.length?`<div class="card pad stack"><h2>Cara melakukan</h2><ol class="steps">${l.ins.map(s=>`<li>${esc(s)}</li>`).join("")}</ol><p class="tiny muted">Instruksi asli dalam bahasa Inggris dari Free Exercise DB.</p></div>`:""}`;
 }
 function renderLib(id){
@@ -1124,7 +1187,7 @@ function renderLib(id){
   loadLib().then(()=>{
     const l=LIBBY[id];if(!l){$("#view").innerHTML=`${top("Pustaka","#exercises")}<div class="empty"><strong>Gerakan tidak ditemukan</strong></div>`;return}
     const mine=S.exercises.find(e=>e.libId===id);
-    $("#view").innerHTML=`${top("","#exercises")}<div><div class="eyebrow">Pustaka gerakan</div><h1>${esc(l.name)}</h1></div>${media(id)}${libInfo(l)}
+    $("#view").innerHTML=`${top("","#exercises")}<div><div class="eyebrow">Pustaka gerakan</div><h1>${esc(l.name)}</h1></div>${muscleCard(l.pm,l.sm,LIB_EQ[l.eq]||l.eq)}${media(id)}${libInfo(l)}
     ${mine?`<a class="btn btn-soft btn-block" href="#ex-${mine.id}">Lihat di gerakan saya</a>`:`<button class="btn btn-primary btn-block" id="addLib">Tambah ke gerakan saya</button>`}`;
     const a=$("#addLib");a&&(a.onclick=()=>{const ex=fromLib(id);toast("Ditambahkan");location.hash="ex-"+ex.id});
   });
@@ -1142,6 +1205,7 @@ function renderExercise(id){
   const l=ex.libId&&LIBBY[ex.libId];
   $("#view").innerHTML=`${top("","#exercises")}
   <div><div class="eyebrow">${esc((eqById(ex.eqId)||{}).name||"Tanpa alat")} · ${MODES[M].name}${ex.muscle?" · "+esc(ex.muscle):""}</div><h1>${esc(ex.name)}</h1></div>
+  ${(()=>{const m=musclesOf(ex);return muscleCard(m.p,m.s.filter(k=>!m.p.includes(k)),(eqById(ex.eqId)||{}).name||"Tanpa alat")})()}
   ${media(ex.libId)}
   <div class="kv"><div><b class="num">${best!=null?fmt(best):"–"}</b><span>${bestLabel} (${unit})</span></div><div><b class="num">${heaviest?fmt(heaviest):h.length}</b><span>${heaviest?"Beban terberat":"Sesi"}</span></div><div><b class="num">${totalVol?fmt(totalVol,0):allSets.length}</b><span>${totalVol?"Total volume":"Total set"}</span></div></div>
   <div class="card pad stack"><div class="row between"><h2>${bestLabel}</h2><span class="tiny muted">${series.length} sesi</span></div>${spark(series)}</div>

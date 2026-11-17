@@ -27,6 +27,7 @@ Buka di Safari iPhone, lalu pilih Bagikan → Tambah ke Layar Utama.
 - Tampilan Graphite dengan mode terang, gelap, atau ikut HP.
 - Beranda: total volume, sesi, jam, dan set minggu ini; heatmap otot depan dan belakang; daftar Personal Record.
 - Layar latihan padat: durasi, volume, set, PR, dan kolom RPE per set. Set yang memecahkan rekor langsung ditandai.
+- Heatmap otot per gerakan: figur depan dan belakang, otot utama dan pendukung, plus alat.
 - Kartu ringkasan 1080 × 1350 untuk dibagikan dari halaman sesi.
 
 ## Rencana
