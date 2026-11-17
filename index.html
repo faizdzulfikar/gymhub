@@ -1249,8 +1249,10 @@ function renderSession(id){
       <table>${it.sets.map((s,j)=>`<tr><td style="width:40px"><span class="chip ${s.k==="w"?"yellow":s.k==="f"?"red":s.k==="d"?"blue":""}">${SETK[s.k||"n"]||j+1}</span></td><td class="m">${prevText(s,ex.mode)}${s.e?` <span class="muted">@${fmt(s.e)}</span>`:""}</td><td class="n muted tiny">${prs[bi+":"+ii+":"+j]?'<span class="prtag">● PR</span> ':""}${ex.mode==="wr"&&e1rm(s.w,s.r)?"1RM ≈ "+fmt(e1rm(s.w,s.r),0):""}</td></tr>`).join("")}</table></div>`}).join("")}</section>`}).join("")}
   <div class="grid2"><button class="btn" id="eTime">Edit waktu & durasi</button><button class="btn" id="eSets">Edit gerakan & set</button></div>
   <div class="row"><button class="btn btn-soft grow" id="again">Ulangi sesi ini</button><button class="btn btn-danger" id="delS">Hapus</button></div>
-  <button class="btn" id="asTpl">Simpan sebagai rutin</button>`;
+  <button class="btn" id="asTpl">Simpan sebagai rutin</button>
+  ${stravaCard(se)}`;
   $("#asTpl").onclick=()=>tplFromSession(se);
+  const sp=$("#stPush");if(sp)sp.onclick=()=>stravaPush(se,false);
   $("#shareBtn").onclick=()=>shareSheet(se);
   $("#eTime").onclick=()=>timeSheet(se,true);
   $("#eSets").onclick=()=>editSession(se);
@@ -1469,6 +1471,47 @@ async function stravaSync(full){
     if(arr.length<100)break;page++;
   }
   s.lastSync=Date.now();save();return added;
+}
+/* Send a logged session to Strava. If the Coros already uploaded a strength activity within 2 hours, update that one (keeps HR and calories); otherwise create a manual activity after asking. */
+function stravaDesc(se){
+  const lines=[];se.blocks.forEach(b=>{const multi=b.type!=="single";if(multi)lines.push((BTYPES[b.type]||BTYPES.single)[0]+(b.cap?" "+b.cap+" menit":"")+":");
+    b.items.forEach(it=>{const ex=exById(it.exId)||{mode:"wr"};const ss=it.sets.filter(x=>x.done!==false&&x.k!=="w");if(!ss.length)return;
+      const parts=[];ss.forEach(x=>{const t=ex.mode==="wr"?`${fmt(x.w,2)} kg × ${x.r??"–"}`:ex.mode==="r"?`${x.r??"–"} rep${x.w?" +"+fmt(x.w)+" kg":""}`:prevText(x,ex.mode).replace(/<[^>]+>/g,"");const l=parts[parts.length-1];if(l&&l[0]===t)l[1]++;else parts.push([t,1])});
+      lines.push((multi?"  ":"")+exName(it.exId)+": "+parts.map(([t,n])=>n>1?t+" ("+n+" set)":t).join(", "))})});
+  const st=sessionStats(se);lines.push("");lines.push(`${st.sets} set${st.vol?" · volume "+fmt(st.vol,0)+" kg":""}${se.feel&&se.feel.rpe?" · RPE sesi "+se.feel.rpe:""}`);
+  if(se.note)lines.push(se.note);lines.push("Dicatat dengan Gym Hub");return lines.join("\n");
+}
+function stravaCard(se){
+  if(!S.strava.refresh)return"";const x=se.strava;
+  return`<section class="card pad stack"><div class="row between"><h2>Strava</h2>${x?`<span class="chip green">${x.mode==="update"?"Diperbarui":"Terkirim"}</span>`:""}</div>
+  <p class="small muted">${x?`${x.mode==="update"?"Aktivitas dari jam kamu":"Aktivitas baru"} sudah berisi daftar gerakan dan set. <a href="https://www.strava.com/activities/${x.id}" target="_blank" rel="noopener">Buka di Strava</a>`:"Daftar gerakan dan set dikirim ke Strava. Kalau Coros sudah mengunggah latihan ini, aktivitas itu yang diperbarui supaya tidak dobel."}</p>
+  <button class="btn ${x?"":"btn-primary"} btn-block" id="stPush">${x?"Kirim ulang":"Kirim ke Strava"}</button></section>`;
+}
+const localIso=t=>{const d=new Date(t);return`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`};
+async function stravaPush(se,create){
+  const b=$("#stPush");if(b){b.disabled=true;b.textContent="Mengirim…"}
+  const fail=m=>{toast(m,"err");if(b){b.disabled=false;b.textContent=se.strava?"Kirim ulang":"Kirim ke Strava"}};
+  try{
+    const tok=await stravaToken(),H={Authorization:"Bearer "+tok};
+    if(S.strava.scope&&!/activity:write/.test(S.strava.scope))return fail("Izin tulis Strava belum diberikan. Putuskan lalu hubungkan Strava lagi dan centang semua izin.");
+    const name=se.title,description=stravaDesc(se);let id=se.strava&&se.strava.id,mode=se.strava&&se.strava.mode;
+    if(!id&&!create){
+      const r=await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${Math.floor(se.start/1000)-3*3600}&before=${Math.floor(se.start/1000)+3*3600}&per_page=30`,{headers:H});
+      if(!r.ok)return fail("Gagal membaca aktivitas Strava ("+r.status+")");
+      const arr=(await r.json()).filter(a=>/WeightTraining|Workout|Crossfit|HighIntensityIntervalTraining/.test(a.sport_type||a.type)).map(a=>({a,d:Math.abs(Date.parse(a.start_date)-se.start)})).filter(x=>x.d<2*36e5).sort((x,y)=>x.d-y.d);
+      if(arr.length){id=arr[0].a.id;mode="update"}
+      else{if(b){b.disabled=false;b.textContent="Kirim ke Strava"}
+        return confirmSheet("Belum ada aktivitas dari jam",`Strava belum punya latihan beban di sekitar ${ftime(se.start)}. Kalau Coros belum sinkron, tunggu sebentar lalu kirim lagi. Atau buat aktivitas baru sekarang.`,"Buat aktivitas baru",()=>stravaPush(se,true))}
+    }
+    let r;
+    if(id)r=await fetch(`https://www.strava.com/api/v3/activities/${id}`,{method:"PUT",headers:{...H,"Content-Type":"application/json"},body:JSON.stringify({name,description})});
+    else{r=await fetch("https://www.strava.com/api/v3/activities",{method:"POST",headers:H,body:new URLSearchParams({name,description,sport_type:"WeightTraining",type:"WeightTraining",start_date_local:localIso(se.start),elapsed_time:String(Math.max(60,Math.round(((se.end||se.start+36e5)-se.start)/1000))),trainer:"1"})});mode="create"}
+    if(r.status===401||r.status===403)return fail("Strava menolak. Putuskan lalu hubungkan Strava lagi supaya izin tulis aktif.");
+    if(r.status===404&&se.strava){delete se.strava;save();return stravaPush(se,false)}
+    if(!r.ok)return fail("Gagal mengirim ke Strava ("+r.status+")");
+    const j=await r.json();se.strava={id:j.id,mode,at:Date.now()};save();
+    toast(mode==="update"?"Aktivitas Coros di Strava diperbarui":"Aktivitas baru dibuat di Strava");route();
+  }catch(e){fail(e.message||"Gagal mengirim ke Strava")}
 }
 async function stravaReturn(){
   const p=new URLSearchParams(location.search);
