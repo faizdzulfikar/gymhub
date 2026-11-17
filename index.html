@@ -220,6 +220,17 @@ ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;f
 .bx{padding:10px 10px 12px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
 .block-head + .bx,.blockmeta + .bx{border-top:0}
 .bx:first-child{border-top:0}
+.bchart{position:relative;touch-action:pan-y}
+.bchart svg{display:block;overflow:visible}
+.bc-tip{position:absolute;top:-6px;width:110px;padding:6px 8px;border-radius:10px;background:var(--surface-2,var(--surface));border:1px solid var(--line);box-shadow:0 6px 18px rgba(0,0,0,.25);display:flex;flex-direction:column;font-size:12px;pointer-events:none}
+.bc-tip b{font-size:14px}
+.bc-tip span{color:var(--ink-3)}
+.plviz{display:flex;align-items:center;height:130px;gap:3px;padding:0 4px}
+.plbar{width:48px;height:14px;border-radius:3px;background:var(--line-strong)}
+.plcol{width:10px;height:22px;border-radius:2px;background:var(--line-strong)}
+.pl{width:22px;border-radius:4px;display:grid;place-items:center;font:700 10px/1 var(--f-mono);color:#fff;writing-mode:vertical-rl;transform:rotate(180deg);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.sug{width:100%;display:flex;align-items:center;gap:8px;border:0;background:none;padding:2px 0;color:var(--ink);font-size:14px;text-align:left}
+.sug b{font-weight:700}
 .bx-name{display:flex;align-items:center;gap:10px}
 .bx-name .thumb{width:42px;height:42px}
 .bx-name button.link{border:0;background:none;padding:0;font-weight:700;font-size:17px;color:var(--ink);text-align:left;line-height:1.2}
@@ -289,7 +300,8 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 td.m{font-family:var(--f-mono);font-size:13px}
 .map{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .code{font-family:var(--f-mono);font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:5px;word-break:break-all}
-.share-prev{width:100%;border-radius:18px;display:block;border:1px solid var(--line);background:#0a0c0f;aspect-ratio:4/5}
+.share-prev{width:100%;max-width:340px;margin:0 auto;border-radius:18px;display:block;border:1px solid var(--line);background:#0a0c0f;aspect-ratio:4/5}
+.share-prev.story{aspect-ratio:9/16;max-width:300px}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .22s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(28px);opacity:.6}}}
 </style>
 </head>
@@ -371,7 +383,7 @@ async function loadStore(){
   return null;
 }
 let saveT,VER=0;
-function save(){VER++;clearTimeout(saveT);saveT=setTimeout(saveNow,250)}
+function save(){VER++;clearTimeout(saveT);saveT=setTimeout(saveNow,250);if(typeof syncSoon==="function")syncSoon()}
 async function saveNow(){
   const data=JSON.parse(JSON.stringify(S));
   try{const db=await idb();db.transaction("kv","readwrite").objectStore("kv").put(data,KEY);return}catch(e){}
@@ -397,8 +409,8 @@ function seed(){
   return migrate({v:2,equipment,exercises,sessions:[],activities:[],active:null,prefs:{rest:90,histSort:"new",exSort:"used"},strava:{}});
 }
 function migrate(s){
-  s.prefs=Object.assign({rest:90,histSort:"new",exSort:"used"},s.prefs||{});
-  s.sessions=s.sessions||[];s.equipment=s.equipment||[];s.activities=s.activities||[];s.strava=s.strava||{};
+  s.prefs=Object.assign({rest:90,histSort:"new",exSort:"used",sug:true,repMin:8,repMax:12,bar:20,plates:[25,20,15,10,5,2.5,1.25]},s.prefs||{});
+  s.sessions=s.sessions||[];s.templates=s.templates||[];s.body=s.body||[];s.equipment=s.equipment||[];s.activities=s.activities||[];s.strava=s.strava||{};
   s.exercises.forEach(e=>{if(!e.libId&&SEED_LIB[e.name])e.libId=SEED_LIB[e.name];if(!e.muscles&&SEED_MUS[e.name])e.muscles=SEED_MUS[e.name]});
   s.v=2;return s;
 }
@@ -456,6 +468,27 @@ const eqById=id=>S.equipment.find(e=>e.id===id);
 const exName=id=>(exById(id)||{name:"(gerakan dihapus)"}).name;
 function setVol(s,mode){return (mode==="wr"||mode==="r")&&s.w&&s.r?s.w*s.r:0}
 function sessionStats(se){let sets=0,vol=0;se.blocks.forEach(b=>b.items.forEach(it=>{const m=(exById(it.exId)||{}).mode;it.sets.forEach(s=>{if(s.done){sets++;vol+=setVol(s,m)}})}));return{sets,vol}}
+const INC={barbel:2.5,dumbel:2,kettlebell:4,mesin:5,kabel:2.5};
+function suggestFor(ex,prev){
+  if(!S.prefs.sug||!ex||S.active&&S.active.editOf)return null;
+  const work=prev.filter(x=>x.k!=="w");if(!work.length)return null;
+  let lo=S.prefs.repMin||8,hi=Math.max(lo,S.prefs.repMax||12);
+  if(ex.mode==="wr"){
+    const rs=work.map(x=>x.r).filter(x=>x!=null).sort((a,b)=>a-b),med=rs.length?rs[Math.floor(rs.length/2)]:lo;
+    if(med<=6&&lo>6){lo=4;hi=6}else if(med>=15&&hi<15){lo=15;hi=20}
+    const top=Math.max(...work.map(x=>x.w||0));if(!top)return null;
+    const atTop=work.filter(x=>(x.w||0)===top&&x.r!=null);if(!atTop.length)return null;
+    const minR=Math.min(...atTop.map(x=>x.r)),easy=atTop.some(x=>x.e!=null)&&Math.max(...atTop.map(x=>x.e??10))<=7;
+    const eq=eqById(ex.eqId),inc=INC[eq&&eq.kind]||2.5;
+    if(minR>=hi||(easy&&minR>=lo))return{w:top+inc,r:lo,why:minR>=hi?`Semua set terakhir sudah ${hi}+ rep di ${fmt(top,2)} kg, jadi beban naik ${fmt(inc,2)} kg dan rep mulai lagi dari ${lo}.`:`Set terakhir terasa ringan (RPE ≤ 7), jadi beban naik ${fmt(inc,2)} kg.`,tag:`naik ${fmt(inc,2)} kg`};
+    if(minR<lo)return{w:top,r:lo,why:`Sesi lalu ada set di bawah ${lo} rep. Pertahankan ${fmt(top,2)} kg dan kejar ${lo} rep dulu.`,tag:"pertahankan"};
+    return{w:top,r:Math.min(minR+1,hi),why:`Tambah 1 rep di beban yang sama. Kalau semua set sudah ${hi} rep, beban naik.`,tag:"+1 rep"};
+  }
+  if(ex.mode==="r"){const minR=Math.min(...work.map(x=>x.r??0));if(!minR)return null;return{r:minR+1,why:"Tambah 1 rep dari set terendah sesi lalu.",tag:"+1 rep"}}
+  if(ex.mode==="t"||ex.mode==="wt"){const minT=Math.min(...work.map(x=>x.t??0));if(!minT)return null;const add=minT<60?5:10;const o={t:minT+add,why:`Tambah ${add} detik dari set terpendek sesi lalu.`,tag:`+${add} dtk`};if(ex.mode==="wt"){const w=Math.max(...work.map(x=>x.w||0));if(w)o.w=w}return o}
+  return null;
+}
+function sugText(ex,g){if(!g)return"";if(ex.mode==="wr")return`${fmt(g.w,2)} kg × ${g.r}`;if(ex.mode==="r")return`${g.r} rep`;if(ex.mode==="wt")return`${g.w?fmt(g.w,2)+" kg × ":""}${g.t} dtk`;return`${g.t} dtk`}
 function prevSetsFor(exId,excludeId){
   const ss=S.sessions.slice().sort((a,b)=>b.start-a.start);
   for(const se of ss){if(se.id===excludeId)continue;for(const b of se.blocks)for(const it of b.items)if(it.exId===exId&&it.sets.some(s=>s.done))return it.sets.filter(s=>s.done)}
@@ -620,10 +653,10 @@ function route(){
   if(h.startsWith("session-")){v="session";arg=h.slice(8)}
   else if(h.startsWith("ex-")){v="exercise";arg=h.slice(3)}
   else if(h.startsWith("lib-")){v="lib";arg=decodeURIComponent(h.slice(4))}
-  else if(["train","history","exercises","more"].includes(h))v=h;
-  const tab=v==="session"?"history":(v==="exercise"||v==="lib")?"exercises":v;
+  else if(["train","history","exercises","more","body"].includes(h))v=h;
+  const tab=v==="session"?"history":(v==="exercise"||v==="lib")?"exercises":v==="body"?"train":v;
   $$("#tabs a").forEach(a=>a.dataset.tab===tab?a.setAttribute("aria-current","page"):a.removeAttribute("aria-current"));
-  ({train:renderTrain,history:renderHistory,session:renderSession,exercises:renderExercises,exercise:renderExercise,lib:renderLib,more:renderMore})[v](arg);
+  ({train:renderTrain,history:renderHistory,session:renderSession,exercises:renderExercises,exercise:renderExercise,lib:renderLib,more:renderMore,body:renderBody})[v](arg);
 }
 
 /* ================= TRAIN / HOME ================= */
@@ -652,15 +685,19 @@ function renderHome(){
     <div class="days" aria-label="Hari latihan minggu ini">${days}</div>
     <div class="stat4"><div><b class="num">${W.n}</b><small>Sesi</small></div><div><b class="num">${hm(W.secs)}</b><small>Jam</small></div><div><b class="num">${W.sets}</b><small>Set</small></div><div><b class="num">${W.acts}</b><small>Strava</small></div></div>
     <button class="btn btn-primary btn-lg btn-block" id="startBtn">Mulai latihan</button></section>
+  ${tplCard()}
   ${nextDayCard()}
   ${weekMuscleCard()}
   ${prCard()}
+  ${bodyCard()}
   ${loadCard()}
   ${feelCard()}
   <div class="row between"><h2>Ulangi sesi</h2>${recent.length?`<a class="link-accent" href="#history">Riwayat ›</a>`:""}</div>
   <div class="card list">${recent.map(se=>{const st=sessionStats(se);return`<button class="item" data-repeat="${se.id}"><div class="grow"><div class="t">${esc(se.title)}</div><div class="s">${fday(se.start)} · ${se.blocks.reduce((a,b)=>a+b.items.length,0)} gerakan · ${st.sets} set</div></div><span class="chip red">Ulangi</span></button>`}).join("")||`<div class="empty"><strong>Belum ada sesi</strong>Mulai sesi pertama, atau impor riwayat Hevy di tab Lainnya.</div>`}</div>`;
   $("#startBtn").onclick=()=>startSession();
   $$("[data-repeat]").forEach(b=>b.onclick=()=>startSession(S.sessions.find(s=>s.id===b.dataset.repeat)));
+  $$("[data-tpl]").forEach(b=>b.onclick=()=>tplSheet(S.templates.find(t=>t.id===b.dataset.tpl)));
+  $$("[data-tplgo]").forEach(b=>b.onclick=e=>{e.stopPropagation();const t=S.templates.find(x=>x.id===b.dataset.tplgo);startTpl(t)});
   const pa=$("#prAll");pa&&(pa.onclick=prSheet);
   const nd=$("#nextDay");if(nd){const se=S.sessions.find(s=>s.id===nd.dataset.s);bindScale(nd,"ndSore",v=>{se.feel=se.feel||{};se.feel.nextSore=v;save();toast("Tercatat. Makasih!");renderHome()})}
 }
@@ -722,11 +759,11 @@ function feelCard(){
 }
 
 /* ================= ACTIVE SESSION ================= */
-function startSession(from){
+function startSession(from,tplId){
   if(S.active){location.hash="train";return route()}
   const h=new Date().getHours();
   const title=from?from.title:(h<11?"Latihan pagi":h<15?"Latihan siang":h<18?"Latihan sore":"Latihan malam");
-  S.active={id:uid(),title,start:Date.now(),note:"",blocks:from?from.blocks.map(b=>({id:uid(),type:b.type,cap:b.cap??null,rounds:null,items:b.items.map(it=>({exId:it.exId,note:"",sets:it.sets.map(s=>({k:s.k||"n",w:null,r:null,t:null,d:null,done:false}))}))})):[]};
+  S.active={id:uid(),title,start:Date.now(),note:"",tplId:tplId||null,blocks:from?from.blocks.map(b=>({id:uid(),type:b.type,cap:b.cap??null,rounds:null,items:b.items.map(it=>({exId:it.exId,note:"",sets:it.sets.map(s=>({k:s.k||"n",w:null,r:null,t:null,d:null,done:false}))}))})):[]};
   save();location.hash="train";route();
 }
 function editSession(se){
@@ -786,27 +823,29 @@ function renderItem(b,it,i){
   const ex=exById(it.exId)||{name:"(gerakan dihapus)",mode:"wr"};const M=MODES[ex.mode]||MODES.wr;
   const prev=prevSetsFor(it.exId,S.active.editOf||S.active.id);
   const cols=M.cols.map(c=>c[0]==="e"?"42px":"minmax(0,1fr)").join(" ");const prJ=itemPR(it,S.active);
-  const eq=eqById(ex.eqId);const hasT=M.cols.some(c=>c[0]==="t");
+  const eq=eqById(ex.eqId);const hasT=M.cols.some(c=>c[0]==="t");const g=suggestFor(ex,prev);
   return `<div class="bx" data-i="${i}">
     <div class="bx-name">${thumb(ex.libId,ex.name)}<div class="grow"><button class="link" data-exinfo="${it.exId}">${esc(ex.name)}</button>${eq?`<div class="tiny muted">${esc(eq.name)}</div>`:""}</div><button class="btn btn-ghost icon" data-imenu="${b.id}:${i}" aria-label="Opsi gerakan"><svg><use href="#i-dots"/></svg></button></div>
     ${it.note?`<div class="small muted">${esc(it.note)}</div>`:""}
+    ${g&&it.sets.some(x=>!x.done&&x.k!=="w")?`<button class="sug" data-sug="${esc(g.why)}"><span class="chip green">Target</span><b class="num">${sugText(ex,g)}</b><span class="tiny muted">${esc(g.tag)}</span><span class="tiny" style="color:var(--accent);margin-left:auto">Kenapa?</span></button>`:""}
     <div class="sets" style="--cols:${cols}">
       <div class="set head"><span>Set</span><span>Sebelumnya</span>${M.cols.map(c=>`<span>${c[1]}</span>`).join("")}<span></span></div>
       ${it.sets.map((s,j)=>{const p=prev[j]||prev[prev.length-1];return `<div class="set ${s.done?"done":""} ${j===prJ?"pr":""}" data-j="${j}">
         <button class="sidx ${s.k&&s.k!=="n"?s.k:""}" data-kind aria-label="Jenis set: ${SETK_NAME[s.k||"n"]}">${SETK[s.k||"n"]||j+1-it.sets.slice(0,j).filter(x=>x.k==="w").length}</button>
         <span class="prev">${j===prJ?"● PR":p?prevText(p,ex.mode):"–"}</span>
-        ${M.cols.map(([f])=>`<input type="number" inputmode="decimal" step="any" data-f="${f}" value="${s[f]??""}" placeholder="${p&&p[f]!=null?p[f]:f==="e"?"–":""}" aria-label="${({w:"Beban kg",r:"Rep",t:"Detik",d:"Meter",e:"RPE"})[f]}">`).join("")}
+        ${M.cols.map(([f])=>`<input type="number" inputmode="decimal" step="any" data-f="${f}" value="${s[f]??""}" placeholder="${g&&s.k!=="w"&&g[f]!=null?g[f]:p&&p[f]!=null?p[f]:f==="e"?"–":""}" aria-label="${({w:"Beban kg",r:"Rep",t:"Detik",d:"Meter",e:"RPE"})[f]}">`).join("")}
         <button class="check" data-done aria-label="Tandai set selesai" aria-pressed="${!!s.done}"><svg><use href="#i-check"/></svg></button>
       </div>`}).join("")}
     </div>
-    <div class="bx-actions"><button class="btn btn-sm grow" data-addset>＋ Set</button>${hasT&&b.type!=="tabata"&&it.sets.some(s=>!s.done)?`<button class="btn btn-sm btn-soft" data-stimer><svg width="14" height="14"><use href="#i-play"/></svg>Timer set</button>`:""}${it.sets.length?`<button class="btn btn-ghost btn-sm" data-delset>Hapus set</button>`:""}</div>
+    <div class="bx-actions"><button class="btn btn-sm grow" data-addset>＋ Set</button>${ex.mode==="wr"&&eq&&eq.kind==="barbel"?`<button class="btn btn-sm btn-soft" data-plates>Plat</button>`:""}${hasT&&b.type!=="tabata"&&it.sets.some(s=>!s.done)?`<button class="btn btn-sm btn-soft" data-stimer><svg width="14" height="14"><use href="#i-play"/></svg>Timer set</button>`:""}${it.sets.length?`<button class="btn btn-ghost btn-sm" data-delset>Hapus set</button>`:""}</div>
   </div>`;
 }
 function findB(id){return S.active.blocks.find(b=>b.id===id)}
 function completeSet(b,it,j,iIdx){
   const s=it.sets[j],ex=exById(it.exId)||{mode:"wr"};
   const prev=prevSetsFor(it.exId,S.active.editOf||S.active.id);const p=prev[j]||prev[prev.length-1]||(j>0?it.sets[j-1]:null);
-  MODES[ex.mode].cols.forEach(([f])=>{if(f!=="e"&&s[f]==null&&p&&p[f]!=null)s[f]=p[f]});
+  const g=s.k!=="w"?suggestFor(ex,prev):null;
+  MODES[ex.mode].cols.forEach(([f])=>{if(f==="e"||s[f]!=null)return;if(g&&g[f]!=null)s[f]=g[f];else if(p&&p[f]!=null)s[f]=p[f]});
   const need=ex.mode==="r"?"r":MODES[ex.mode].cols[0][0];
   if(s[need]==null)return false;
   s.done=true;s.at=Date.now();buzz(15);
@@ -818,6 +857,7 @@ function completeSet(b,it,j,iIdx){
 }
 function bindBlocks(){
   const root=$("#blocks");
+  root.addEventListener("click",e=>{const b=e.target.closest("[data-sug]");if(b)toast(b.dataset.sug)});
   root.addEventListener("input",e=>{
     const inp=e.target;
     if(inp.dataset.bf){const b=findB(inp.closest("[data-b]").dataset.b);b[inp.dataset.bf]=num(inp.value);save();return}
@@ -840,6 +880,7 @@ function bindBlocks(){
     if(t.hasAttribute("data-addset")){const last=it.sets[it.sets.length-1];it.sets.push({k:"n",w:last?last.w:null,r:last?last.r:null,t:last?last.t:null,d:last?last.d:null,done:false});save();rerenderBlock(b);return}
     if(t.hasAttribute("data-delset")){it.sets.pop();save();rerenderBlock(b);updStats();return}
     if(t.hasAttribute("data-stimer")){setTimerFor(b,+iEl.dataset.i);return}
+    if(t.hasAttribute("data-plates")){const nx=it.sets.find(x=>!x.done&&x.k!=="w")||it.sets[it.sets.length-1];const ex=exById(it.exId);const g=suggestFor(ex,prevSetsFor(it.exId,S.active.id));plateSheet(nx&&nx.w!=null?nx.w:g&&g.w?g.w:null);return}
     if(t.dataset.itimer){intervalTimer(b);return}
     if(t.dataset.round){b.items.forEach(x=>{const l=x.sets[x.sets.length-1];x.sets.push({k:"n",w:l?l.w:null,r:l?l.r:null,t:l?l.t:null,d:l?l.d:null,done:false})});save();rerenderBlock(b);return}
     if(t.dataset.addto){pickExercises("into:"+b.id);return}
@@ -1014,13 +1055,16 @@ function finishSession(){
   const feel=Object.assign({rpe:null,energy:null,sore:null,note:""},se.feel||{});
   const undone=se.blocks.reduce((a,b)=>a+b.items.reduce((x,it)=>x+it.sets.filter(s=>!s.done).length,0),0);
   const len=se.editOf?(se.end||Date.now())-se.start:Date.now()-se.start;
+  const tpl=!se.editOf&&se.tplId?S.templates.find(t=>t.id===se.tplId):null;let updTpl=false;
   sheet(se.editOf?"Simpan perubahan":"Selesaikan sesi",`<div class="kv"><div><b class="num">${durWords(len/1000)}</b><span>Durasi</span></div><div><b class="num">${st.sets}</b><span>Set</span></div><div><b class="num">${fmt(st.vol,0)}</b><span>Volume kg</span></div></div>
   ${undone?`<p class="small muted">${undone} set belum dicentang dan tidak ikut disimpan.</p>`:""}
   <div class="field"><span class="label">Seberapa berat sesi ini? (RPE)</span>${scale("fRpe",["1","2","3","4","5","6","7","8","9","10"],feel.rpe!=null?feel.rpe-1:null,5)}<span class="tiny muted">1 sangat ringan · 5 sedang · 8 berat · 10 maksimal</span></div>
   <div class="field"><span class="label">Energi sekarang</span>${scale("fEn",ENERGY,feel.energy,5)}</div>
   <div class="field"><span class="label">Pegal atau nyeri</span>${scale("fSo",SORE,feel.sore,4)}</div>
-  <div class="field"><label for="fNote">Rasa lainnya</label><input type="text" id="fNote" value="${esc(feel.note||"")}" placeholder="mis. bahu kanan agak ngilu, pump enak"></div>`,
+  <div class="field"><label for="fNote">Rasa lainnya</label><input type="text" id="fNote" value="${esc(feel.note||"")}" placeholder="mis. bahu kanan agak ngilu, pump enak"></div>
+  ${tpl?`<div class="field"><span class="label">Perbarui rutin “${esc(tpl.title)}” dengan susunan sesi ini?</span><div class="seg" id="fTpl"><button data-u="0" aria-pressed="true">Tidak</button><button data-u="1" aria-pressed="false">Ya, perbarui</button></div><span class="tiny muted">Hanya gerakan dan set yang dicentang yang disalin. Berat dan repetisi tidak.</span></div>`:""}`,
   `<button class="btn grow" data-close>${se.editOf?"Lanjut edit":"Lanjut latihan"}</button><button class="btn btn-primary grow" id="fOk">Simpan sesi</button>`,sc=>{
+    $$("#fTpl [data-u]",sc).forEach(b=>b.onclick=()=>{updTpl=b.dataset.u==="1";$$("#fTpl [data-u]",sc).forEach(x=>x.setAttribute("aria-pressed",x===b))});
     bindScale(sc,"fRpe",v=>feel.rpe=v+1);bindScale(sc,"fEn",v=>feel.energy=v);bindScale(sc,"fSo",v=>feel.sore=v);
     $("#fOk",sc).onclick=()=>{
       if(!st.sets){toast("Belum ada set yang dicentang");return}
@@ -1028,9 +1072,141 @@ function finishSession(){
       if(!se.editOf)se.end=Date.now();
       se.blocks=se.blocks.map(b=>({...b,items:b.items.map(it=>({...it,sets:it.sets.filter(s=>s.done)})).filter(it=>it.sets.length)})).filter(b=>b.items.length);
       delete se.timer;
+      if(tpl&&updTpl){tpl.blocks=tplBlocks(se);tpl.updated=Date.now()}
       if(se.editOf){const id=se.editOf;delete se.editOf;se.id=id;S.sessions=S.sessions.map(x=>x.id===id?se:x)}else S.sessions.push(se);
       S.active=null;stopTimer();keepAwake(false);save();closeSheet();toast("Sesi tersimpan");location.hash="session-"+se.id;
     };
+  });
+}
+
+/* ================= BODY WEIGHT & MEASUREMENTS ================= */
+const BODYM=[["w","Berat","kg",1],["fat","Lemak tubuh","%",1],["waist","Pinggang","cm",1],["chest","Dada","cm",1],["arm","Lengan","cm",1],["thigh","Paha","cm",1]];
+let bodyMet="w",bodyRange=90;
+function bodySeries(k){return S.body.filter(x=>x[k]!=null).sort((a,b)=>a.t-b.t)}
+function bodyCard(){
+  const ws=bodySeries("w");
+  if(!ws.length)return `<a class="card pad row" href="#body" style="gap:12px;text-decoration:none;color:inherit"><div class="grow"><b>Berat badan &amp; ukuran</b><div class="tiny muted">Catat berat, lingkar pinggang, lengan, dan lainnya untuk lihat tren.</div></div><span class="chip red">Catat</span></a>`;
+  const last=ws[ws.length-1],ago=ws.filter(x=>x.t<=last.t-28*DAY).pop()||ws[0],d=last.w-ago.w;
+  const pts=ws.filter(x=>x.t>=last.t-90*DAY);
+  return `<a class="card pad stack" href="#body" style="text-decoration:none;color:inherit"><div class="row between"><span class="eyebrow">Berat badan</span>${ago!==last?`<span class="small muted">${d>0?"▲":d<0?"▼":"•"} ${fmt(Math.abs(d),1)} kg sejak ${fday(ago.t)}</span>`:""}</div>
+  <div class="row between" style="align-items:center;gap:16px"><div><div class="hero-big num" style="font-size:40px">${fmt(last.w,1)}<small>kg</small></div><div class="tiny muted">${fday(last.t)}</div></div>${pts.length>1?`<div class="grow" style="max-width:170px">${bspark(pts.map(x=>[x.t,x.w]),170,48)}</div>`:""}</div></a>`;
+}
+function bspark(P,w,h){const xs=P.map(p=>p[0]),ys=P.map(p=>p[1]);const x0=Math.min(...xs),x1=Math.max(...xs)||x0+1,y0=Math.min(...ys),y1=Math.max(...ys);const X=t=>(t-x0)/((x1-x0)||1)*(w-6)+3,Y=v=>h-3-(v-y0)/((y1-y0)||1)*(h-6);
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" aria-hidden="true" style="display:block;overflow:visible"><polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${P.map(p=>X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)).join(" ")}"/><circle cx="${X(xs[xs.length-1])}" cy="${Y(ys[ys.length-1])}" r="3.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></svg>`}
+function bodyChart(P,unit){
+  const W=360,H=200,L=40,R=12,T=12,B=26;
+  if(P.length<2)return `<div class="empty small">${P.length?"Butuh minimal 2 catatan untuk grafik.":"Belum ada data untuk ukuran ini."}</div>`;
+  const xs=P.map(p=>p.t),ys=P.map(p=>p.v);const x0=Math.min(...xs),x1=Math.max(...xs);let y0=Math.min(...ys),y1=Math.max(...ys);const pad=Math.max((y1-y0)*.15,.5);y0-=pad;y1+=pad;
+  const X=t=>L+(t-x0)/((x1-x0)||1)*(W-L-R),Y=v=>T+(1-(v-y0)/(y1-y0))*(H-T-B);
+  const ticks=[0,1,2,3].map(i=>y0+(y1-y0)*i/3);
+  const xt=[x0,(x0+x1)/2,x1];
+  return `<div class="bchart" data-pts='${JSON.stringify(P.map(p=>[Math.round(X(p.t)*10)/10,Math.round(Y(p.v)*10)/10,fday(p.t),fmt(p.v,1)+" "+unit]))}'><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Grafik tren">
+  ${ticks.map(v=>`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="var(--ink-3)">${fmt(v,1)}</text>`).join("")}
+  ${xt.map((t,i)=>`<text x="${X(t)}" y="${H-6}" text-anchor="${["start","middle","end"][i]}" font-size="10" fill="var(--ink-3)">${new Date(t).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</text>`).join("")}
+  <polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${P.map(p=>X(p.t).toFixed(1)+","+Y(p.v).toFixed(1)).join(" ")}"/>
+  ${P.length<=40?P.map(p=>`<circle cx="${X(p.t)}" cy="${Y(p.v)}" r="3" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`).join(""):""}
+  <g class="bc-h" style="display:none"><line y1="${T}" y2="${H-B}" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3"/><circle r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></g>
+  <rect x="${L}" y="0" width="${W-L-R}" height="${H}" fill="transparent" class="bc-hit"/></svg><div class="bc-tip" hidden></div></div>`;
+}
+function bindChart(root){
+  const c=$(".bchart",root);if(!c)return;const pts=JSON.parse(c.dataset.pts),svg=$("svg",c),g=$(".bc-h",c),tip=$(".bc-tip",c);
+  const show=e=>{const r=svg.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*360;let best=pts[0];pts.forEach(p=>{if(Math.abs(p[0]-x)<Math.abs(best[0]-x))best=p});
+    g.style.display="";g.querySelector("line").setAttribute("x1",best[0]);g.querySelector("line").setAttribute("x2",best[0]);g.querySelector("circle").setAttribute("cx",best[0]);g.querySelector("circle").setAttribute("cy",best[1]);
+    tip.hidden=false;tip.innerHTML=`<b>${best[3]}</b><span>${best[2]}</span>`;const px=best[0]/360*r.width;tip.style.left=Math.min(Math.max(px-50,0),r.width-110)+"px"};
+  const hit=$(".bc-hit",c);hit.addEventListener("pointermove",show);hit.addEventListener("pointerdown",show);hit.addEventListener("pointerleave",()=>{g.style.display="none";tip.hidden=true});
+}
+function renderBody(){
+  const m=BODYM.find(x=>x[0]===bodyMet)||BODYM[0];
+  const all=bodySeries(m[0]),lastAll=all[all.length-1];
+  const P=all.filter(x=>!bodyRange||x.t>=Date.now()-bodyRange*DAY).map(x=>({t:x.t,v:x[m[0]]}));
+  const first=P[0],last=P[P.length-1],d=first&&last?last.v-first.v:null;
+  const rows=S.body.slice().sort((a,b)=>b.t-a.t);
+  $("#view").innerHTML=`${top("Badan","#train")}
+  <section class="hero"><div class="row between"><span class="eyebrow">${m[1]}</span>${d!=null&&P.length>1?`<span class="small muted">${d>0?"▲":d<0?"▼":"•"} ${fmt(Math.abs(d),1)} ${m[2]} dalam periode ini</span>`:""}</div>
+    <div class="hero-big num">${lastAll?fmt(lastAll[m[0]],1):"–"}<small>${m[2]}</small></div>
+    <button class="btn btn-primary btn-lg btn-block" id="bAdd">＋ Catat hari ini</button></section>
+  <div class="seg">${BODYM.map(([k,l])=>`<button data-bm="${k}" aria-pressed="${k===bodyMet}">${l}</button>`).join("")}</div>
+  <section class="card pad stack"><div class="row between"><span class="eyebrow">Tren</span><div class="seg">${[[30,"1B"],[90,"3B"],[365,"1T"],[0,"Semua"]].map(([k,l])=>`<button data-br="${k}" aria-pressed="${k===bodyRange}">${l}</button>`).join("")}</div></div>${bodyChart(P,m[2])}</section>
+  <div class="row between"><h2>Catatan</h2><span class="tiny muted">${rows.length}</span></div>
+  <div class="card list">${rows.map(r=>`<button class="item" data-bid="${r.id}"><div class="grow"><div class="t">${fday(r.t)}</div><div class="s">${BODYM.filter(([k])=>r[k]!=null).map(([k,l,u])=>`${l} ${fmt(r[k],1)} ${u}`).join(" · ")}</div></div></button>`).join("")||`<div class="empty"><strong>Belum ada catatan</strong>Timbang pagi hari sebelum makan supaya angkanya konsisten.</div>`}</div>`;
+  $("#bAdd").onclick=()=>bodySheet();
+  $$("[data-bm]").forEach(b=>b.onclick=()=>{bodyMet=b.dataset.bm;renderBody()});
+  $$("[data-br]").forEach(b=>b.onclick=()=>{bodyRange=+b.dataset.br;renderBody()});
+  $$("[data-bid]").forEach(b=>b.onclick=()=>bodySheet(S.body.find(x=>x.id===b.dataset.bid)));
+  bindChart($("#view"));
+}
+function bodySheet(r){
+  const last=bodySeries("w").pop()||{};const today=isoDate(Date.now());
+  sheet(r?"Edit catatan":"Catat badan",`<div class="field"><label for="bD">Tanggal</label><input type="date" id="bD" value="${r?isoDate(r.t):today}" max="${today}"></div>
+  <div class="grid2">${BODYM.map(([k,l,u])=>`<div class="field"><label for="b_${k}">${l} (${u})</label><input type="number" inputmode="decimal" step="any" id="b_${k}" value="${r&&r[k]!=null?r[k]:""}" placeholder="${!r&&last[k]!=null?fmt(last[k],1):""}"></div>`).join("")}</div>
+  <p class="tiny muted">Isi yang perlu saja. Ukur lingkar di titik yang sama setiap kali.</p>
+  ${r?`<button class="btn btn-danger" id="bDel">Hapus catatan</button>`:""}`,`<button class="btn btn-primary btn-block" id="bOk">Simpan</button>`,sc=>{
+    $("#bOk",sc).onclick=()=>{const o=r||{id:uid()};const dv=$("#bD",sc).value;const t=dv?new Date(dv+"T08:00:00").getTime():Date.now();let any=false;
+      BODYM.forEach(([k])=>{const v=num($("#b_"+k,sc).value);if(v!=null){o[k]=v;any=true}else delete o[k]});
+      if(!any){toast("Isi minimal satu angka");return}
+      o.t=t;if(!r)S.body.push(o);save();closeSheet();toast("Tersimpan");route()};
+    const del=$("#bDel",sc);del&&(del.onclick=()=>{S.body=S.body.filter(x=>x!==r);save();closeSheet();route()});
+  });
+}
+
+/* ================= PLATE CALCULATOR ================= */
+const PLATE_COL={25:"#d93d26",20:"#2a63d6",15:"#e0b021",10:"#2f9a5a",5:"#f2f2f2",2.5:"#3a3a3a",1.25:"#b8bcc4",0.5:"#b8bcc4"};
+function platesFor(total,bar,avail){
+  let side=(total-bar)/2;if(side<0)return null;const out=[];
+  for(const p of avail.slice().sort((a,b)=>b-a)){while(side>=p-1e-9){out.push(p);side-=p}}
+  return{side:out,rest:Math.round(side*2*100)/100};
+}
+function plateSheet(w){
+  const P=S.prefs,ALL=[25,20,15,10,5,2.5,1.25,0.5];
+  sheet("Kalkulator plat",`<div class="field"><label for="plW">Total beban (kg)</label><input type="number" inputmode="decimal" step="any" id="plW" value="${w??""}" placeholder="mis. 80"></div>
+  <div class="field"><span class="label">Berat bar</span><div class="seg" id="plBar">${[20,15,10,0].map(k=>`<button data-b="${k}" aria-pressed="${P.bar===k}">${k?k+" kg":"Tanpa bar"}</button>`).join("")}</div></div>
+  <div id="plOut"></div>
+  <div class="field"><span class="label">Plat yang tersedia di gym</span><div class="row wrap" id="plAv">${ALL.map(p=>`<button class="chip" data-p="${p}" aria-pressed="${P.plates.includes(p)}" style="cursor:pointer;${P.plates.includes(p)?"":"opacity:.4;text-decoration:line-through"}">${fmt(p,2)}</button>`).join("")}</div><span class="tiny muted">Ketuk untuk menyalakan atau mematikan.</span></div>`,"",sc=>{
+    const draw=()=>{const tw=num($("#plW",sc).value);const o=$("#plOut",sc);
+      if(tw==null){o.innerHTML=`<p class="small muted">Isi total beban untuk melihat plat per sisi.</p>`;return}
+      const r=platesFor(tw,P.bar,P.plates);
+      if(!r){o.innerHTML=`<p class="small">Beban lebih ringan dari bar (${P.bar} kg).</p>`;return}
+      const H={25:120,20:112,15:100,10:86,5:66,2.5:52,1.25:44,0.5:36};
+      o.innerHTML=`<div class="card pad stack"><div class="eyebrow">Per sisi</div>
+        <div class="plviz"><span class="plbar"></span>${r.side.map(p=>`<span class="pl" style="height:${H[p]}px;background:${PLATE_COL[p]};${p===5||p===1.25||p===0.5?"color:#111":""}">${fmt(p,2)}</span>`).join("")}<span class="plcol"></span></div>
+        <b class="num" style="font-size:20px">${r.side.length?r.side.map(p=>fmt(p,2)).join(" + "):"Bar kosong"}</b>
+        <span class="small muted">${P.bar?"Bar "+P.bar+" kg + ":""}2 × ${fmt(r.side.reduce((a,b)=>a+b,0),2)} kg = ${fmt(tw-r.rest,2)} kg${r.rest?` · kurang ${fmt(r.rest,2)} kg, tidak bisa pas dengan plat yang ada`:""}</span></div>`};
+    $("#plW",sc).oninput=draw;
+    $$("#plBar [data-b]",sc).forEach(b=>b.onclick=()=>{P.bar=+b.dataset.b;save();$$("#plBar [data-b]",sc).forEach(x=>x.setAttribute("aria-pressed",x===b));draw()});
+    $$("#plAv [data-p]",sc).forEach(b=>b.onclick=()=>{const p=+b.dataset.p;P.plates=P.plates.includes(p)?P.plates.filter(x=>x!==p):[...P.plates,p];save();const on=P.plates.includes(p);b.setAttribute("aria-pressed",on);b.style.opacity=on?"":".4";b.style.textDecoration=on?"":"line-through";draw()});
+    draw();
+  });
+}
+
+/* ================= ROUTINES (templates) ================= */
+function tplBlocks(se){return se.blocks.map(b=>({type:b.type,cap:b.cap??null,items:b.items.map(it=>({exId:it.exId,sets:it.sets.map(x=>({k:x.k||"n"}))})).filter(it=>it.sets.length)})).filter(b=>b.items.length)}
+function tplStats(t){const n=t.blocks.reduce((a,b)=>a+b.items.length,0),sets=t.blocks.reduce((a,b)=>a+b.items.reduce((x,it)=>x+it.sets.length,0),0);return{n,sets}}
+function tplLast(t){let l=0;S.sessions.forEach(se=>{if(se.tplId===t.id)l=Math.max(l,se.start)});return l}
+function startTpl(t){if(!t)return;if(S.active){toast("Selesaikan sesi yang sedang jalan dulu");location.hash="train";return}startSession({title:t.title,blocks:t.blocks},t.id)}
+function tplCard(){
+  if(!S.templates.length)return S.sessions.length?`<div class="card pad row" style="gap:12px"><div class="grow"><b>Rutin</b><div class="tiny muted">Simpan susunan latihan favorit, misalnya Push, Pull, Leg, lalu mulai dengan satu ketukan. Buka sesi di Riwayat dan pilih Simpan sebagai rutin.</div></div></div>`:"";
+  const list=S.templates.slice().sort((a,b)=>(tplLast(b)||b.created)-(tplLast(a)||a.created));
+  return `<div class="row between"><h2>Rutin</h2><span class="tiny muted">${S.templates.length} tersimpan</span></div>
+  <div class="card list">${list.map(t=>{const st=tplStats(t),l=tplLast(t);return `<div class="item" role="button" tabindex="0" data-tpl="${t.id}"><div class="grow"><div class="t">${esc(t.title)}</div><div class="s">${st.n} gerakan · ${st.sets} set${l?" · terakhir "+fday(l):""}</div></div><button class="chip red" data-tplgo="${t.id}" style="border:0;cursor:pointer">Mulai</button></div>`}).join("")}</div>`;
+}
+function tplFromSession(se){
+  sheet("Simpan sebagai rutin",`<div class="field"><label for="tplN">Nama rutin</label><input type="text" id="tplN" value="${esc(se.title)}" placeholder="mis. Push A, Leg day, Core di mat"></div>
+  <p class="small muted">Urutan gerakan, circuit, dan jumlah set disalin. Berat dan repetisi tidak disimpan di rutin; saat latihan kamu tetap lihat angka sesi terakhir.</p>`,
+  `<button class="btn grow" data-close>Batal</button><button class="btn btn-primary grow" id="tplOk">Simpan</button>`,sc=>{
+    $("#tplOk",sc).onclick=()=>{const n=$("#tplN").value.trim();if(!n)return $("#tplN").focus();
+      S.templates.push({id:uid(),title:n,blocks:tplBlocks(se),created:Date.now()});save();closeSheet();toast("Rutin tersimpan. Ada di halaman Latihan.")};
+  });
+}
+function tplSheet(t){
+  if(!t)return;const st=tplStats(t);
+  sheet(t.title,`<p class="small muted">${st.n} gerakan · ${st.sets} set</p>
+  <div class="list">${t.blocks.map(b=>{const [l,c]=BTYPES[b.type]||BTYPES.single;return `${b.type!=="single"?`<div class="pick-sec">${esc(l)}${b.cap?" · "+b.cap+" menit":""}</div>`:""}${b.items.map(it=>{const ex=exById(it.exId)||{};return `<div class="item">${thumb(ex.libId,ex.name||"?")}<div class="grow"><div class="t">${esc(exName(it.exId))}</div><div class="s">${it.sets.length} set${it.sets.some(x=>x.k==="w")?" · termasuk pemanasan":""}</div></div></div>`}).join("")}`}).join("")}</div>
+  <p class="tiny muted">Untuk mengubah isi rutin: mulai rutin ini, ubah gerakan atau set, lalu saat selesai pilih “Ya, perbarui”.</p>
+  <div class="row"><button class="btn grow" id="tplRen">Ganti nama</button><button class="btn btn-danger" id="tplDel">Hapus</button></div>`,
+  `<button class="btn btn-primary btn-block" id="tplGo">Mulai rutin</button>`,sc=>{
+    $("#tplGo",sc).onclick=()=>{closeSheet();startTpl(t)};
+    $("#tplRen",sc).onclick=()=>{closeSheet();sheet("Ganti nama rutin",`<div class="field"><label for="tplN">Nama rutin</label><input type="text" id="tplN" value="${esc(t.title)}"></div>`,`<button class="btn btn-primary btn-block" id="tplOk">Simpan</button>`,s2=>{$("#tplOk",s2).onclick=()=>{const n=$("#tplN").value.trim();if(!n)return;t.title=n;save();closeSheet();route()}})};
+    $("#tplDel",sc).onclick=()=>{closeSheet();confirmSheet("Hapus rutin?",`Rutin “${t.title}” dihapus. Sesi yang pernah dicatat tetap ada di Riwayat.`,"Hapus",()=>{S.templates=S.templates.filter(x=>x!==t);save();route()})};
   });
 }
 
@@ -1072,7 +1248,9 @@ function renderSession(id){
     ${b.items.map((it,ii)=>{const ex=exById(it.exId)||{mode:"wr"};return`<div class="bx"><a class="bx-name" href="#ex-${it.exId}" style="text-decoration:none">${thumb(ex.libId,ex.name)}<b class="grow">${esc(exName(it.exId))}</b></a>${it.note?`<div class="small muted">${esc(it.note)}</div>`:""}
       <table>${it.sets.map((s,j)=>`<tr><td style="width:40px"><span class="chip ${s.k==="w"?"yellow":s.k==="f"?"red":s.k==="d"?"blue":""}">${SETK[s.k||"n"]||j+1}</span></td><td class="m">${prevText(s,ex.mode)}${s.e?` <span class="muted">@${fmt(s.e)}</span>`:""}</td><td class="n muted tiny">${prs[bi+":"+ii+":"+j]?'<span class="prtag">● PR</span> ':""}${ex.mode==="wr"&&e1rm(s.w,s.r)?"1RM ≈ "+fmt(e1rm(s.w,s.r),0):""}</td></tr>`).join("")}</table></div>`}).join("")}</section>`}).join("")}
   <div class="grid2"><button class="btn" id="eTime">Edit waktu & durasi</button><button class="btn" id="eSets">Edit gerakan & set</button></div>
-  <div class="row"><button class="btn btn-soft grow" id="again">Ulangi sesi ini</button><button class="btn btn-danger" id="delS">Hapus</button></div>`;
+  <div class="row"><button class="btn btn-soft grow" id="again">Ulangi sesi ini</button><button class="btn btn-danger" id="delS">Hapus</button></div>
+  <button class="btn" id="asTpl">Simpan sebagai rutin</button>`;
+  $("#asTpl").onclick=()=>tplFromSession(se);
   $("#shareBtn").onclick=()=>shareSheet(se);
   $("#eTime").onclick=()=>timeSheet(se,true);
   $("#eSets").onclick=()=>editSession(se);
@@ -1091,91 +1269,109 @@ function drawBody(x,side,heat,ox,oy,k){
 function fitText(x,t,w){if(x.measureText(t).width<=w)return t;while(t.length>1&&x.measureText(t+"…").width>w)t=t.slice(0,-1);return t+"…"}
 function wrapText(x,t,w,max){const words=t.split(/\s+/);const lines=[];let cur="";words.forEach(wd=>{const n=cur?cur+" "+wd:wd;if(x.measureText(n).width<=w||!cur)cur=n;else{lines.push(cur);cur=wd}});if(cur)lines.push(cur);if(lines.length>max){const keep=lines.slice(0,max);keep[max-1]=fitText(x,lines.slice(max-1).join(" "),w);return keep}return lines.map(l=>fitText(x,l,w))}
 function rrect(x,X,Y,w,h,r){x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+w,Y,X+w,Y+h,r);x.arcTo(X+w,Y+h,X,Y+h,r);x.arcTo(X,Y+h,X,Y,r);x.arcTo(X,Y,X+w,Y,r);x.closePath()}
-async function drawShare(c,se){
+/* Story: 1080 × 1920 with content kept out of the top ~230 px and bottom ~260 px that Instagram covers. Feed: 1080 × 1350. */
+async function drawShare(c,se,story){
   try{await Promise.all(['800 120px "Barlow Condensed"','700 30px Barlow','600 30px Barlow','700 30px "JetBrains Mono"'].map(f=>document.fonts.load(f)))}catch(e){}
-  const x=c.getContext("2d"),W=1080,H=1350,P=84,CD='"Barlow Condensed","Arial Narrow",sans-serif',BD='Barlow,system-ui,sans-serif',MO='"JetBrains Mono",ui-monospace,monospace';
+  const W=1080,H=story?1920:1350,P=story?96:84,T=story?230:P,B=story?260:P;c.width=W;c.height=H;
+  const x=c.getContext("2d"),CD='"Barlow Condensed","Arial Narrow",sans-serif',BD='Barlow,system-ui,sans-serif',MO='"JetBrains Mono",ui-monospace,monospace';
   let g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"#16191f");g.addColorStop(1,"#08090b");x.fillStyle=g;x.fillRect(0,0,W,H);
-  g=x.createRadialGradient(W-40,20,0,W-40,20,760);g.addColorStop(0,"rgba(255,90,61,.55)");g.addColorStop(1,"rgba(255,90,61,0)");x.fillStyle=g;x.fillRect(0,0,W,H);
+  g=x.createRadialGradient(W-40,20,0,W-40,20,story?1000:760);g.addColorStop(0,"rgba(255,90,61,.55)");g.addColorStop(1,"rgba(255,90,61,0)");x.fillStyle=g;x.fillRect(0,0,W,H);
+  if(story){g=x.createRadialGradient(0,H,0,0,H,700);g.addColorStop(0,"rgba(91,140,255,.18)");g.addColorStop(1,"rgba(91,140,255,0)");x.fillStyle=g;x.fillRect(0,0,W,H)}
   const st=sessionStats(se),prs=allPRs().at[se.id]||{},nPr=Object.keys(prs).length;
   x.textBaseline="alphabetic";x.textAlign="left";
-  x.fillStyle="#9aa3b0";x.font=`700 28px ${BD}`;x.fillText(("Gym Hub · "+fdate(se.start)).toUpperCase(),P,P+24);
-  if(nPr){x.font=`800 34px ${CD}`;const t=nPr+" PR",w=x.measureText(t).width+40;x.save();x.shadowColor="rgba(255,90,61,.6)";x.shadowBlur=24;x.fillStyle="#ff5a3d";rrect(x,W-P-w,P-14,w,52,12);x.fill();x.restore();x.fillStyle="#fff";x.fillText(t,W-P-w+20,P+24)}
-  x.fillStyle="#f3f4f6";x.font=`800 136px ${CD}`;
-  let y=P+170;wrapText(x,se.title.toUpperCase(),W-2*P,2).forEach(l=>{x.fillText(l,P,y);y+=122});
+  x.fillStyle="#9aa3b0";x.font=`700 28px ${BD}`;x.fillText(("Gym Hub · "+fdate(se.start)).toUpperCase(),P,T+24);
+  if(nPr){x.font=`800 34px ${CD}`;const t=nPr+" PR",w=x.measureText(t).width+40;x.save();x.shadowColor="rgba(255,90,61,.6)";x.shadowBlur=24;x.fillStyle="#ff5a3d";rrect(x,W-P-w,T-14,w,52,12);x.fill();x.restore();x.fillStyle="#fff";x.fillText(t,W-P-w+20,T+24)}
+  x.fillStyle="#f3f4f6";x.font=`800 ${story?150:136}px ${CD}`;
+  let y=T+(story?180:170);wrapText(x,se.title.toUpperCase(),W-2*P,2).forEach(l=>{x.fillText(l,P,y);y+=story?134:122});
   y+=4;
   const stats=[[se.end?hm((se.end-se.start)/1000):"–","Durasi"],[fmt(st.vol,0),"Volume kg"],[String(st.sets),"Set"]];if(se.feel&&se.feel.rpe)stats.push([String(se.feel.rpe),"RPE"]);
   const cw=(W-2*P)/stats.length;
   stats.forEach(([v,l],i)=>{const X=P+i*cw;if(i){x.fillStyle="rgba(255,255,255,.12)";x.fillRect(X-24,y,2,110)}x.fillStyle="#f3f4f6";x.font=`800 88px ${CD}`;x.fillText(v,X,y+74);x.fillStyle="#8d96a3";x.font=`700 24px ${BD}`;x.fillText(l.toUpperCase(),X,y+108)});
   y+=150;x.fillStyle="rgba(255,255,255,.12)";x.fillRect(P,y,W-2*P,2);y+=44;
-  const heat=sessionHeat(se),k=1.08;
-  drawBody(x,"front",heat,P-6,y,k);drawBody(x,"back",heat,P+170,y,k);
-  x.fillStyle="#8d96a3";x.font=`700 22px ${BD}`;x.textAlign="center";x.fillText("DEPAN",P+70,y+420);x.fillText("BELAKANG",P+246,y+420);x.textAlign="left";
-  const LX=P+400,LW=W-P-LX;let ly=y+10;
+  const heat=sessionHeat(se);
   const rows=[];se.blocks.forEach((b,bi)=>b.items.forEach((it,ii)=>{const ex=exById(it.exId)||{mode:"wr",name:"?"};const ds=it.sets.filter(s=>s.done&&s.k!=="w");if(!ds.length)return;const best=ds.reduce((a,s)=>setScore(ex.mode,s)>setScore(ex.mode,a)?s:a,ds[0]);const pr=it.sets.some((s,j)=>prs[bi+":"+ii+":"+j]);rows.push({n:exName(it.exId),v:`${ds.length} set · ${prevText(best,ex.mode)}${ex.mode==="r"?" rep":""}`,pr})}));
-  const show=rows.slice(0,7);
-  show.forEach(r=>{x.fillStyle="#eef0f3";x.font=`600 34px ${BD}`;x.fillText(fitText(x,r.n,LW),LX,ly+30);x.font=`700 25px ${MO}`;x.fillStyle="#9aa3b0";const v=fitText(x,r.v,LW-(r.pr?90:0));x.fillText(v,LX,ly+66);if(r.pr){const vw=x.measureText(v).width;x.fillStyle="#ff5a3d";x.font=`800 25px ${BD}`;x.fillText("● PR",LX+vw+14,ly+66)}ly+=92});
-  if(rows.length>show.length){x.fillStyle="#8d96a3";x.font=`600 26px ${BD}`;x.fillText(`+${rows.length-show.length} gerakan lagi`,LX,ly+24)}
-  x.fillStyle="#f3f4f6";x.font=`800 50px ${CD}`;x.fillText("GYM",P,H-P);const gw=x.measureText("GYM").width;x.fillStyle="#ff5a3d";x.fillText("HUB",P+gw+2,H-P);
-  x.fillStyle="#8d96a3";x.font=`700 24px ${MO}`;x.textAlign="right";x.fillText(`${ftime(se.start)}${se.end?"–"+ftime(se.end):""}`,W-P,H-P-4);x.textAlign="left";
+  const row=(r,X,Y,LW)=>{x.fillStyle="#eef0f3";x.font=`600 34px ${BD}`;x.fillText(fitText(x,r.n,LW),X,Y+30);x.font=`700 25px ${MO}`;x.fillStyle="#9aa3b0";const v=fitText(x,r.v,LW-(r.pr?90:0));x.fillText(v,X,Y+66);if(r.pr){const vw=x.measureText(v).width;x.fillStyle="#ff5a3d";x.font=`800 25px ${BD}`;x.fillText("● PR",X+vw+14,Y+66)}};
+  if(story){
+    const k=1.3,fw=140*k,gap=90,X0=(W-2*fw-gap)/2;
+    drawBody(x,"front",heat,X0,y,k);drawBody(x,"back",heat,X0+fw+gap,y,k);
+    x.fillStyle="#8d96a3";x.font=`700 22px ${BD}`;x.textAlign="center";x.fillText("DEPAN",X0+fw/2,y+366*k+34);x.fillText("BELAKANG",X0+fw*1.5+gap,y+366*k+34);x.textAlign="left";
+    y+=366*k+80;
+    const colW=(W-2*P-40)/2,maxRows=Math.max(1,Math.floor((H-B-80-y)/96))*2;
+    const show=rows.length>maxRows?rows.slice(0,maxRows-1):rows;
+    show.forEach((r,i)=>row(r,P+(i%2)*(colW+40),y+Math.floor(i/2)*96,colW));
+    if(rows.length>show.length){const i=show.length;x.fillStyle="#8d96a3";x.font=`600 28px ${BD}`;x.fillText(`+${rows.length-show.length} gerakan lagi`,P+(i%2)*(colW+40),y+Math.floor(i/2)*96+40)}
+  }else{
+    const k=1.08;drawBody(x,"front",heat,P-6,y,k);drawBody(x,"back",heat,P+170,y,k);
+    x.fillStyle="#8d96a3";x.font=`700 22px ${BD}`;x.textAlign="center";x.fillText("DEPAN",P+70,y+420);x.fillText("BELAKANG",P+246,y+420);x.textAlign="left";
+    const LX=P+400,LW=W-P-LX;let ly=y+10;const show=rows.slice(0,7);
+    show.forEach(r=>{row(r,LX,ly,LW);ly+=92});
+    if(rows.length>show.length){x.fillStyle="#8d96a3";x.font=`600 26px ${BD}`;x.fillText(`+${rows.length-show.length} gerakan lagi`,LX,ly+24)}
+  }
+  const fy=H-B;x.fillStyle="#f3f4f6";x.font=`800 50px ${CD}`;x.fillText("GYM",P,fy);const gw=x.measureText("GYM").width;x.fillStyle="#ff5a3d";x.fillText("HUB",P+gw+2,fy);
+  x.fillStyle="#8d96a3";x.font=`700 24px ${MO}`;x.textAlign="right";x.fillText(`${ftime(se.start)}${se.end?"–"+ftime(se.end):""}`,W-P,fy-4);x.textAlign="left";
 }
 function shareSheet(se){
-  sheet("Bagikan ringkasan",`<canvas id="shc" class="share-prev" width="1080" height="1350" role="img" aria-label="Kartu ringkasan ${esc(se.title)}"></canvas><p class="tiny muted">Gambar 1080 × 1350, pas untuk story atau feed.</p>`,
-  `<button class="btn grow" id="shSave" disabled>Simpan gambar</button><button class="btn btn-primary grow" id="shGo" disabled><svg width="16" height="16"><use href="#i-share"/></svg>Bagikan</button>`,async sc=>{
-    const c=$("#shc",sc);await drawShare(c,se);
-    const fname=`gymhub-${isoDate(se.start)}.png`;
-    const blob=await new Promise(r=>c.toBlob(r,"image/png"));if(!blob||!$("#shc"))return;
-    const file=new File([blob],fname,{type:"image/png"}),url=URL.createObjectURL(blob);
-    const sv=$("#shSave",sc),go=$("#shGo",sc);sv.disabled=go.disabled=false;
-    sv.onclick=()=>{const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove()};
-    go.onclick=()=>{if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:se.title}).catch(()=>{})}else toast("Browser ini belum bisa berbagi gambar. Pakai Simpan gambar.")};
+  let story=true,file=null,url=null,gen=0;
+  sheet("Bagikan ringkasan",`<div class="seg" id="shFmt"><button data-f="story" aria-pressed="true">Story 9:16</button><button data-f="feed" aria-pressed="false">Feed 4:5</button></div><canvas id="shc" class="share-prev story" width="1080" height="1920" role="img" aria-label="Kartu ringkasan ${esc(se.title)}"></canvas><p class="tiny muted" id="shInfo">1080 × 1920, penuh untuk Instagram Story.</p>`,
+  `<button class="btn grow" id="shSave" disabled>Simpan gambar</button><button class="btn btn-primary grow" id="shGo" disabled><svg width="16" height="16"><use href="#i-share"/></svg>Bagikan</button>`,sc=>{
+    const c=$("#shc",sc),sv=$("#shSave",sc),go=$("#shGo",sc);
+    const make=async()=>{const my=++gen;sv.disabled=go.disabled=true;c.classList.toggle("story",story);$("#shInfo",sc).textContent=story?"1080 × 1920, penuh untuk Instagram Story.":"1080 × 1350, pas untuk feed.";
+      await drawShare(c,se,story);const blob=await new Promise(r=>c.toBlob(r,"image/png"));if(my!==gen||!blob||!$("#shc"))return;
+      const fname=`gymhub-${isoDate(se.start)}-${story?"story":"feed"}.png`;file=new File([blob],fname,{type:"image/png"});if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(blob);sv.disabled=go.disabled=false};
+    $$("#shFmt button",sc).forEach(b=>b.onclick=()=>{story=b.dataset.f==="story";$$("#shFmt button",sc).forEach(y=>y.setAttribute("aria-pressed",y===b));make()});
+    sv.onclick=()=>{if(!file)return;const a=document.createElement("a");a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.parentNode.removeChild(a)};
+    go.onclick=()=>{if(!file)return;if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file]}).catch(()=>{})}else toast("Browser ini belum bisa berbagi gambar. Pakai Simpan gambar.")};
+    make();
   });
 }
 
 /* ================= EXERCISES ================= */
-let exTab="mine",exFilter="all",exQ="",libMus="all",libLimit=60;
+let exQ="",libMus="all",libLimit=60,exQt;
 function renderExercises(){
+  clearTimeout(exQt);
   const used={},last={};S.sessions.forEach(se=>se.blocks.forEach(b=>b.items.forEach(it=>{used[it.exId]=(used[it.exId]||0)+1;last[it.exId]=Math.max(last[it.exId]||0,se.start)})));
-  const kinds=[...new Set(S.equipment.map(e=>e.kind))];
+  const scope=S.prefs.exScope||"all",sortKey=S.prefs.exSort||"used";
+  const mineLib=new Set(S.exercises.map(e=>e.libId).filter(Boolean));
+  const libN=LIB?LIB.filter(l=>!mineLib.has(l.id)).length:0;
   $("#view").innerHTML=`${top("Gerakan")}
-  <div class="seg"><button data-xt="mine" aria-pressed="${exTab==="mine"}">Gerakan saya · ${S.exercises.length}</button><button data-xt="lib" aria-pressed="${exTab==="lib"}">Pustaka${LIB&&LIB.length?" · "+LIB.length:""}</button><button data-xt="eq" aria-pressed="${exTab==="eq"}">Alat · ${S.equipment.length}</button></div>
-  <div id="exBody" class="stack" style="gap:12px"></div>`;
-  $$("[data-xt]").forEach(b=>b.onclick=()=>{exTab=b.dataset.xt;exQ="";renderExercises()});
-  const body=$("#exBody");
-  if(exTab==="eq"){
-    body.innerHTML=`<button class="btn btn-primary" id="eqNew">＋ Alat baru</button><div class="card list">${S.equipment.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<button class="item" data-eq="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${KINDS[e.kind]||"Lainnya"} · ${S.exercises.filter(x=>x.eqId===e.id).length} gerakan</div></div></button>`).join("")}</div>`;
-    $("#eqNew").onclick=()=>eqSheet();$$("[data-eq]").forEach(b=>b.onclick=()=>eqSheet(eqById(b.dataset.eq)));return;
-  }
-  if(exTab==="lib"){
-    body.innerHTML=`<input type="search" id="exq" placeholder="Cari: squat, row, plank, kettlebell…" value="${esc(exQ)}" aria-label="Cari pustaka"><div class="seg"><button data-m="all" aria-pressed="${libMus==="all"}">Semua otot</button>${Object.entries(MUSCLES).map(([k,l])=>`<button data-m="${k}" aria-pressed="${libMus===k}">${l}</button>`).join("")}</div><div class="card list" id="exlist"><div class="empty">Memuat pustaka…</div></div><p class="tiny muted">Gambar dan data dari Free Exercise DB (domain publik). Nama gerakan dalam bahasa Inggris.</p>`;
-    const draw=()=>{if(!LIB)return;const words=exQ.toLowerCase().split(/\s+/).filter(Boolean);
-      const list=LIB.filter(l=>(libMus==="all"||l.pm.includes(libMus))&&words.every(w=>(l.name+" "+(LIB_EQ[l.eq]||"")+" "+l.eq).toLowerCase().includes(w)));
-      $("#exlist").innerHTML=list.slice(0,libLimit).map(l=>`<a class="item" href="#lib-${encodeURIComponent(l.id)}">${thumb(l.id,l.name)}<div class="grow"><div class="t">${esc(l.name)}</div><div class="s">${esc(LIB_EQ[l.eq]||l.eq)} · ${esc(l.pm.map(m=>MUSCLES[m]||m).join(", "))}</div></div>${S.exercises.some(e=>e.libId===l.id)?'<span class="chip green">Dipakai</span>':""}</a>`).join("")+(list.length>libLimit?`<button class="item" id="more" style="justify-content:center;color:var(--accent);font-weight:700">Tampilkan lagi (${list.length-libLimit} tersisa)</button>`:"")||`<div class="empty"><strong>Tidak ada yang cocok</strong>Coba kata lain dalam bahasa Inggris.</div>`;
-      const m=$("#more");m&&(m.onclick=()=>{libLimit+=60;draw()})};
-    let qt;$("#exq").oninput=e=>{exQ=e.target.value;libLimit=60;clearTimeout(qt);qt=setTimeout(draw,120)};
-    $$(".seg [data-m]").forEach(b=>b.onclick=()=>{libMus=b.dataset.m;libLimit=60;$$(".seg [data-m]").forEach(x=>x.setAttribute("aria-pressed",x===b));draw()});
-    loadLib().then(()=>{draw();const t=$('[data-xt="lib"]');if(t)t.textContent="Pustaka · "+LIB.length});return;
-  }
-  const sortKey=S.prefs.exSort||"used";
-  body.innerHTML=`<div class="row"><input type="search" id="exq" placeholder="Cari gerakan atau alat…" value="${esc(exQ)}" class="grow" aria-label="Cari"><button class="btn btn-primary" id="exNew">＋ Baru</button></div>
-  <div class="row"><div class="seg grow"><button data-k="all" aria-pressed="${exFilter==="all"}">Semua alat</button>${Object.entries(KINDS).filter(([k])=>kinds.includes(k)).map(([k,l])=>`<button data-k="${k}" aria-pressed="${exFilter===k}">${l}</button>`).join("")}</div>
-  <select id="exSort" style="width:auto" aria-label="Urutkan">${[["used","Sering dipakai"],["recent","Terakhir dipakai"],["az","A–Z"]].map(([k,l])=>`<option value="${k}" ${sortKey===k?"selected":""}>${l}</option>`).join("")}</select></div>
-  <div class="card list" id="exlist"></div>`;
-  const draw=()=>{const q=exQ.toLowerCase();
-    const sorters={used:(a,b)=>(used[b.id]||0)-(used[a.id]||0)||a.name.localeCompare(b.name),recent:(a,b)=>(last[b.id]||0)-(last[a.id]||0)||a.name.localeCompare(b.name),az:(a,b)=>a.name.localeCompare(b.name)};
-    const list=S.exercises.filter(e=>{const eq=eqById(e.eqId);if(exFilter!=="all"&&(!eq||eq.kind!==exFilter))return false;return !q||e.name.toLowerCase().includes(q)||(eq&&eq.name.toLowerCase().includes(q))||(e.muscle||"").toLowerCase().includes(q)}).sort(sorters[sortKey]);
-    $("#exlist").innerHTML=list.map(e=>`<a class="item" href="#ex-${e.id}">${thumb(e.libId,e.name)}<div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc((eqById(e.eqId)||{}).name||"Tanpa alat")} · ${MODES[e.mode].name}</div></div><div class="r tiny muted">${used[e.id]?used[e.id]+"×":""}</div></a>`).join("")||`<div class="empty"><strong>Tidak ada gerakan</strong>Tekan “Baru”, atau cari di Pustaka.</div>`};
+  <div class="row"><input type="search" id="exq" placeholder="Cari: squat, row, kettlebell, mesin…" value="${esc(exQ)}" class="grow" aria-label="Cari gerakan"><button class="btn btn-primary" id="exNew">＋ Baru</button></div>
+  <div class="seg"><button data-sc="all" aria-pressed="${scope==="all"}">Semua${LIB?" · "+(S.exercises.length+libN):""}</button><button data-sc="mine" aria-pressed="${scope==="mine"}">Pernah dipakai · ${S.exercises.length}</button></div>
+  ${scope==="mine"?`<div class="row between"><span class="small muted">Urutkan</span>`+`<select id="exSort" style="width:auto" aria-label="Urutkan">${[["used","Sering dipakai"],["recent","Terakhir dipakai"],["az","A–Z"]].map(([k,l])=>`<option value="${k}" ${sortKey===k?"selected":""}>${l}</option>`).join("")}</select></div>`:""}
+  <div class="seg"><button data-m="all" aria-pressed="${libMus==="all"}">Semua otot</button>${Object.entries(MUSCLES).map(([k,l])=>`<button data-m="${k}" aria-pressed="${libMus===k}">${l}</button>`).join("")}</div>
+  <div class="card list" id="exlist"><div class="empty">Memuat…</div></div>
+  <p class="tiny muted">Gerakan yang pernah kamu pakai tampil paling atas. Sisanya dari Free Exercise DB (domain publik), nama dalam bahasa Inggris.</p>`;
+  const sorters={used:(a,b)=>(used[b.id]||0)-(used[a.id]||0)||(last[b.id]||0)-(last[a.id]||0)||a.name.localeCompare(b.name),recent:(a,b)=>(last[b.id]||0)-(last[a.id]||0)||a.name.localeCompare(b.name),az:(a,b)=>a.name.localeCompare(b.name)};
+  const musOf=e=>e.muscles&&e.muscles.length?e.muscles:(e.libId&&LIBBY[e.libId]?LIBBY[e.libId].pm:[]);
+  const draw=()=>{const words=exQ.toLowerCase().split(/\s+/).filter(Boolean);
+    const mine=S.exercises.filter(e=>{const eq=eqById(e.eqId);if(libMus!=="all"&&!musOf(e).includes(libMus))return false;const hay=(e.name+" "+(eq?eq.name+" "+(KINDS[eq.kind]||""):"Tanpa alat")+" "+(e.muscle||"")).toLowerCase();return words.every(w=>hay.includes(w))}).sort(sorters[scope==="mine"?sortKey:"used"]);
+    const lib=scope==="mine"||!LIB?[]:LIB.filter(l=>!mineLib.has(l.id)&&(libMus==="all"||l.pm.includes(libMus))&&words.every(w=>(l.name+" "+(LIB_EQ[l.eq]||"")+" "+l.eq).toLowerCase().includes(w)));
+    const mineRow=e=>`<a class="item" href="#ex-${e.id}">${thumb(e.libId,e.name)}<div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc((eqById(e.eqId)||{}).name||"Tanpa alat")} · ${MODES[e.mode].name}</div></div><div class="r tiny muted">${used[e.id]?used[e.id]+"×":""}</div></a>`;
+    const libRow=l=>`<a class="item" href="#lib-${encodeURIComponent(l.id)}">${thumb(l.id,l.name)}<div class="grow"><div class="t">${esc(l.name)}</div><div class="s">${esc(LIB_EQ[l.eq]||l.eq)} · ${esc(l.pm.map(m=>MUSCLES[m]||m).join(", "))}</div></div></a>`;
+    let html="";
+    if(mine.length)html+=(scope==="all"&&lib.length?`<div class="pick-sec">Yang pernah dipakai</div>`:"")+mine.map(mineRow).join("");
+    if(lib.length)html+=(mine.length?`<div class="pick-sec">Pustaka</div>`:"")+lib.slice(0,libLimit).map(libRow).join("")+(lib.length>libLimit?`<button class="item" id="more" style="justify-content:center;color:var(--accent);font-weight:700">Tampilkan lagi (${lib.length-libLimit} tersisa)</button>`:"");
+    $("#exlist").innerHTML=html||`<div class="empty"><strong>Tidak ada yang cocok</strong>${scope==="mine"?"Coba filter Semua untuk cari di pustaka, atau tekan Baru.":"Coba kata lain dalam bahasa Inggris, atau tekan Baru."}</div>`;
+    const m=$("#more");m&&(m.onclick=()=>{libLimit+=60;draw()})};
   draw();
-  $("#exq").oninput=e=>{exQ=e.target.value;draw()};
-  $$(".seg [data-k]").forEach(b=>b.onclick=()=>{exFilter=b.dataset.k;renderExercises()});
-  $("#exSort").onchange=e=>{S.prefs.exSort=e.target.value;save();draw()};
+  if(!LIB)loadLib().then(()=>{if(location.hash==="#exercises")renderExercises()});
+  $("#exq").oninput=e=>{exQ=e.target.value;libLimit=60;clearTimeout(exQt);exQt=setTimeout(draw,120)};
+  $$("[data-sc]").forEach(b=>b.onclick=()=>{S.prefs.exScope=b.dataset.sc;save();libLimit=60;renderExercises()});
+  $$(".seg [data-m]").forEach(b=>b.onclick=()=>{libMus=b.dataset.m;libLimit=60;$$(".seg [data-m]").forEach(x=>x.setAttribute("aria-pressed",x===b));draw()});
+  const so=$("#exSort");so&&(so.onchange=e=>{S.prefs.exSort=e.target.value;save();draw()});
   $("#exNew").onclick=()=>sheet("Gerakan baru",`<div id="nxHost"></div>`,"",sc=>newExerciseForm($("#nxHost",sc),exQ,ex=>{closeSheet();location.hash="ex-"+ex.id},closeSheet));
+}
+function eqSection(){
+  return `<section class="card pad stack"><div class="row between"><h2>Alat</h2><span class="chip">${S.equipment.length}</span></div>
+  <p class="small muted">Daftar alat di gym kamu. Dipakai untuk mengelompokkan gerakan dan memilih alat saat bikin gerakan baru.</p>
+  <div class="list" id="eqList">${S.equipment.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<button class="item" data-eq="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${KINDS[e.kind]||"Lainnya"} · ${S.exercises.filter(x=>x.eqId===e.id).length} gerakan</div></div></button>`).join("")}</div>
+  <button class="btn btn-block" id="eqNew">＋ Alat baru</button></section>`;
 }
 function eqSheet(eq){
   sheet(eq?"Edit alat":"Alat baru",`<div class="field"><label for="eqN">Nama alat</label><input type="text" id="eqN" value="${esc(eq?eq.name:"")}" placeholder="mis. Hack squat Panatta"></div>
   <div class="field"><label for="eqK">Jenis</label><select id="eqK">${Object.entries(KINDS).map(([k,l])=>`<option value="${k}" ${eq&&eq.kind===k?"selected":""}>${l}</option>`).join("")}</select></div>
   ${eq?`<button class="btn btn-danger" id="eqDel">Hapus alat</button>`:""}`,`<button class="btn btn-primary btn-block" id="eqSave">Simpan</button>`,sc=>{
-    $("#eqSave",sc).onclick=()=>{const n=$("#eqN").value.trim();if(!n)return $("#eqN").focus();if(eq){eq.name=n;eq.kind=$("#eqK").value}else S.equipment.push({id:uid(),name:n,kind:$("#eqK").value});save();closeSheet();renderExercises()};
-    const d=$("#eqDel",sc);d&&(d.onclick=()=>{const c=S.exercises.filter(x=>x.eqId===eq.id).length;S.exercises.forEach(x=>{if(x.eqId===eq.id)x.eqId=""});S.equipment=S.equipment.filter(x=>x!==eq);save();closeSheet();toast(c?`Alat dihapus, ${c} gerakan jadi tanpa alat`:"Alat dihapus");renderExercises()});
+    $("#eqSave",sc).onclick=()=>{const n=$("#eqN").value.trim();if(!n)return $("#eqN").focus();if(eq){eq.name=n;eq.kind=$("#eqK").value}else S.equipment.push({id:uid(),name:n,kind:$("#eqK").value});save();closeSheet();route()};
+    const d=$("#eqDel",sc);d&&(d.onclick=()=>{const c=S.exercises.filter(x=>x.eqId===eq.id).length;S.exercises.forEach(x=>{if(x.eqId===eq.id)x.eqId=""});S.equipment=S.equipment.filter(x=>x!==eq);save();closeSheet();toast(c?`Alat dihapus, ${c} gerakan jadi tanpa alat`:"Alat dihapus");route()});
   });
 }
 function libInfo(l){
@@ -1288,6 +1484,7 @@ function renderMore(){
   const th=document.documentElement.dataset.theme||"",s=S.strava;
   const connected=!!s.refresh;
   $("#view").innerHTML=`${top("Lainnya")}
+  ${acctCard()}
   <section class="card pad stack"><div class="row between"><h2>Strava</h2>${connected?`<span class="chip green">Terhubung</span>`:""}</div>
   ${connected?`<p class="small">Akun: <b>${esc(s.athlete||"Strava")}</b> · ${S.activities.length} aktivitas tersimpan${s.lastSync?` · sinkron ${fday(s.lastSync)} ${ftime(s.lastSync)}`:""}</p>
     <div class="row"><button class="btn btn-primary grow" id="stSync">Ambil aktivitas terbaru</button><button class="btn" id="stOff">Putuskan</button></div>
@@ -1304,19 +1501,29 @@ function renderMore(){
     <p class="small muted">Di Hevy: Profil → Settings → Export &amp; Import Data → Export Workouts. Pilih file CSV-nya di sini. Sesi yang sudah pernah diimpor akan dilewati.</p>
     <label class="btn btn-primary btn-block" for="hevyFile">Pilih file CSV Hevy</label><input type="file" id="hevyFile" accept=".csv,text/csv" hidden>
   </section>
+  <section class="card pad row" style="gap:12px"><div class="grow"><h2>Kalkulator plat</h2><div class="tiny muted">Hitung plat per sisi bar. Juga ada tombol Plat di gerakan barbel saat latihan.</div></div><button class="btn btn-soft" id="plOpen">Buka</button></section>
+  ${eqSection()}
   <section class="card pad stack"><h2>Cadangan</h2>
-    <p class="small muted">Data tersimpan di browser HP ini sampai login Google dan sinkron siap. Simpan cadangan sesekali. Kunci Strava tidak ikut dicadangkan.</p>
+    <p class="small muted">${CU?"Data tersinkron ke akun Google kamu. Cadangan file tetap berguna sebagai pegangan.":"Tanpa login, data hanya ada di browser HP ini. Simpan cadangan sesekali."} Kunci Strava tidak ikut dicadangkan.</p>
     <div class="row"><button class="btn grow" id="expBtn">Unduh cadangan</button><label class="btn grow" for="impFile">Pulihkan</label><input type="file" id="impFile" accept=".json,application/json" hidden></div>
     <p class="tiny muted" id="dInfo"></p>
   </section>
   <section class="card pad stack"><h2>Pengaturan</h2>
     <div class="field"><label for="pRest">Istirahat bawaan (detik)</label><input type="number" inputmode="numeric" id="pRest" value="${S.prefs.rest}"></div>
+    <div class="field"><span class="label">Saran beban berikutnya</span><div class="seg">${[[true,"Aktif"],[false,"Mati"]].map(([k,l])=>`<button data-sg="${k}" aria-pressed="${!!S.prefs.sug===k}">${l}</button>`).join("")}</div>
+      <div class="grid2"><div class="field"><label for="pLo">Rep minimal</label><input type="number" inputmode="numeric" id="pLo" value="${S.prefs.repMin}"></div><div class="field"><label for="pHi">Rep maksimal</label><input type="number" inputmode="numeric" id="pHi" value="${S.prefs.repMax}"></div></div>
+      <span class="tiny muted">Pola double progression: tambah rep di beban yang sama sampai semua set mencapai rep maksimal, lalu beban naik (barbel 2,5 kg, dumbel 2 kg, kettlebell 4 kg, mesin 5 kg) dan rep mulai lagi dari minimal. Gerakan yang biasa kamu lakukan di 6 rep ke bawah otomatis pakai rentang 4–6, dan yang 15 rep ke atas pakai 15–20.</span></div>
     <div class="field"><span class="label">Tema</span><div class="seg">${[["","Ikuti HP"],["light","Terang"],["dark","Gelap"]].map(([k,l])=>`<button data-th="${k}" aria-pressed="${th===k}">${l}</button>`).join("")}</div></div>
     <p class="tiny muted">Tip: di Safari, tekan Bagikan → Tambah ke Layar Utama supaya Gym Hub terbuka seperti app dan tetap jalan tanpa sinyal. Suara timer butuh mode senyap HP dimatikan.</p>
   </section>
   <p class="tiny muted">Gambar dan pustaka gerakan: Free Exercise DB (domain publik).</p>`;
+  $("#plOpen").onclick=()=>plateSheet(null);
+  bindAcct();
+  $("#eqNew").onclick=()=>eqSheet();$$("[data-eq]").forEach(b=>b.onclick=()=>eqSheet(eqById(b.dataset.eq)));
   $("#dInfo").textContent=`${S.sessions.length} sesi · ${S.activities.length} aktivitas Strava · ${S.exercises.length} gerakan · ${S.equipment.length} alat`;
   $("#pRest").oninput=e=>{S.prefs.rest=num(e.target.value)??90;save()};
+  $$("[data-sg]").forEach(b=>b.onclick=()=>{S.prefs.sug=b.dataset.sg==="true";save();renderMore()});
+  $("#pLo").oninput=e=>{S.prefs.repMin=num(e.target.value)??8;save()};$("#pHi").oninput=e=>{S.prefs.repMax=num(e.target.value)??12;save()};
   $$("[data-th]").forEach(b=>b.onclick=()=>{const k=b.dataset.th;if(k)document.documentElement.dataset.theme=k;else delete document.documentElement.dataset.theme;try{localStorage.setItem("gymhub.theme",k)}catch(e){}renderMore()});
   const go=$("#stGo");go&&(go.onclick=()=>{const id=$("#stId").value.trim(),sec=$("#stSec").value.trim();if(!/^\d+$/.test(id)||sec.length<20){toast("Client ID harus angka dan Secret 40 karakter");return}
     s.clientId=id;s.clientSecret=sec;save();saveNow().then(()=>{location.href=`https://www.strava.com/oauth/authorize?client_id=${id}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri())}&approval_prompt=auto&scope=read,activity:read_all,activity:write&state=gymhub`})});
@@ -1392,6 +1599,121 @@ async function hevyPrepare(text){
   });
 }
 
+/* ================= ACCOUNT & SYNC (Firebase) ================= */
+const FB_CFG={apiKey:"AIzaSyBWMUWTN8GNzTasfnbuGiqjLqO0ktefW1M",authDomain:"gymhub-71ce7.firebaseapp.com",projectId:"gymhub-71ce7",storageBucket:"gymhub-71ce7.firebasestorage.app",messagingSenderId:"581378154896",appId:"1:581378154896:web:a45d141c9db5a8deeb5315"};
+let CU=null,AUTHL=false,FBP=null,unwatch=null,syncT=null,SST={st:"off",at:0,err:""};
+const DEV=(()=>{try{let d=localStorage.getItem("gymhub.dev");if(!d){d=Math.random().toString(36).slice(2,10);localStorage.setItem("gymhub.dev",d)}return d}catch(e){return "x"}})();
+let SY=(()=>{try{return JSON.parse(localStorage.getItem("gymhub.sync"))||{}}catch(e){return{}}})();
+function sySave(){try{localStorage.setItem("gymhub.sync",JSON.stringify(SY))}catch(e){}}
+function hsh(str){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<str.length;i++){const c=str.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return(h2>>>0).toString(36)+(h1>>>0).toString(36)}
+const mon=t=>{const d=new Date(t);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")};
+/* Cloud layout: users/{uid}/chunks/{id}, each {j: JSON text, rev, dev}. "core" = gear, exercises, routines, body, prefs; "s-YYYY-MM" = sessions by month; "a-YYYY-MM" = Strava activities by month. The live session and Strava keys stay on the device. */
+function chunksOf(st){
+  const o={core:JSON.stringify({equipment:st.equipment,exercises:st.exercises,templates:st.templates,body:st.body,prefs:st.prefs})};
+  const g={};st.sessions.forEach(x=>{(g["s-"+mon(x.start)]=g["s-"+mon(x.start)]||[]).push(x)});(st.activities||[]).forEach(x=>{(g["a-"+mon(x.start)]=g["a-"+mon(x.start)]||[]).push(x)});
+  Object.keys(g).forEach(k=>o[k]=JSON.stringify(g[k]));return o;
+}
+function applyChunk(st,id,j){
+  if(id==="core"){const c=JSON.parse(j);["equipment","exercises","templates","body","prefs"].forEach(k=>{if(c[k]!=null)st[k]=c[k]});return}
+  const k=id[0]==="s"?"sessions":id[0]==="a"?"activities":null;if(!k)return;
+  const m=id.slice(2),list=j?JSON.parse(j):[];
+  st[k]=st[k].filter(x=>mon(x.start)!==m).concat(list).sort((a,b)=>a.start-b.start);
+}
+function loadFB(){
+  if(FBP)return FBP;
+  FBP=new Promise((res,rej)=>{if(window.GHFB){window.GHFB.init(FB_CFG);return res(window.GHFB)}const sc=document.createElement("script");sc.src="fb.js";sc.onload=()=>{try{window.GHFB.init(FB_CFG);res(window.GHFB)}catch(e){rej(e)}};sc.onerror=()=>{FBP=null;rej(new Error("Modul login gagal dimuat. Cek koneksi."))};document.head.appendChild(sc)});
+  return FBP;
+}
+function setSync(st,err){SST={st,at:st==="ok"?Date.now():SST.at,err:err||""};const el=$("#syncSt");if(el)el.innerHTML=syncLabel()}
+function syncLabel(){const{st,at,err}=SST;if(st==="busy")return"Menyinkronkan…";if(st==="err")return`<span style="color:var(--accent)">${esc(err||"Gagal sinkron")}</span>`;if(st==="offline")return"Offline. Perubahan dikirim saat online lagi.";if(st==="ok")return`Tersinkron ${ftime(at)}`;return"Menyambung…"}
+function syncSoon(){if(!CU||!SY.ready)return;clearTimeout(syncT);syncT=setTimeout(pushAll,1500)}
+async function pushAll(){
+  if(!CU||!SY.ready)return;const fb=window.GHFB;if(!fb)return;
+  if(!navigator.onLine){setSync("offline");return}
+  const ch=chunksOf(S),jobs=[];SY.hash=SY.hash||{};
+  Object.keys(ch).forEach(id=>{const h=hsh(ch[id]);if(SY.hash[id]!==h)jobs.push([id,ch[id],h])});
+  const gone=Object.keys(SY.hash).filter(id=>!(id in ch));
+  if(!jobs.length&&!gone.length){setSync("ok");return}
+  setSync("busy");
+  try{
+    for(const [id,j,h] of jobs){await fb.put(CU.uid,id,{j,rev:Date.now(),dev:DEV});SY.hash[id]=h}
+    for(const id of gone){await fb.del(CU.uid,id);delete SY.hash[id]}
+    sySave();setSync("ok");
+  }catch(e){sySave();setSync(navigator.onLine?"err":"offline",e&&e.code==="permission-denied"?"Ditolak Firestore. Cek aturan keamanan.":"Gagal sinkron, dicoba lagi nanti");clearTimeout(syncT);syncT=setTimeout(pushAll,30000)}
+}
+window.addEventListener("online",()=>syncSoon());
+function onRemote(changes){
+  let hit=false;
+  changes.forEach(c=>{
+    if(c.type==="removed"){if(!(c.id in (SY.hash||{})))return;delete SY.hash[c.id];applyChunk(S,c.id,"");hit=true;return}
+    const j=c.data&&c.data.j;if(typeof j!=="string")return;const h=hsh(j);if(SY.hash[c.id]===h)return;
+    try{applyChunk(S,c.id,j);SY.hash[c.id]=h;hit=true}catch(e){}
+  });
+  if(!hit)return;
+  sySave();VER++;clearTimeout(saveT);saveT=setTimeout(saveNow,250);setSync("ok");
+  const busy=$("#scrim")||(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName));
+  if(!busy&&!(location.hash==="#train"&&S.active))route();
+}
+function startWatch(){if(unwatch)unwatch();unwatch=window.GHFB.watch(CU.uid,onRemote,e=>setSync("err",e&&e.code==="permission-denied"?"Ditolak Firestore. Cek aturan keamanan.":"Koneksi sinkron terputus"))}
+const hasData=st=>st.sessions.length+st.templates.length+st.body.length>0;
+function mergeStates(cloud,local){
+  const m=JSON.parse(JSON.stringify(cloud)),L=JSON.parse(JSON.stringify(local));const low=x=>(x||"").trim().toLowerCase();
+  const eqMap={};L.equipment.forEach(e=>{const c=m.equipment.find(x=>x.id===e.id)||m.equipment.find(x=>low(x.name)===low(e.name));if(c)eqMap[e.id]=c.id;else m.equipment.push(e)});
+  const exMap={};L.exercises.forEach(e=>{const c=m.exercises.find(x=>x.id===e.id)||m.exercises.find(x=>low(x.name)===low(e.name)&&x.mode===e.mode);if(c)exMap[e.id]=c.id;else{e.eqId=eqMap[e.eqId]||e.eqId;m.exercises.push(e)}});
+  const fix=bl=>bl.forEach(b=>b.items.forEach(it=>it.exId=exMap[it.exId]||it.exId));
+  L.sessions.forEach(x=>{if(m.sessions.some(y=>y.id===x.id||(x.hevyKey&&y.hevyKey===x.hevyKey)))return;fix(x.blocks);m.sessions.push(x)});
+  L.templates.forEach(x=>{if(m.templates.some(y=>y.id===x.id))return;fix(x.blocks);m.templates.push(x)});
+  L.body.forEach(x=>{if(!m.body.some(y=>y.id===x.id))m.body.push(x)});
+  (L.activities||[]).forEach(x=>{if(!m.activities.some(y=>y.id===x.id))m.activities.push(x)});
+  m.sessions.sort((a,b)=>a.start-b.start);return m;
+}
+async function firstSync(u){
+  const fb=window.GHFB;setSync("busy");
+  const docs=await fb.getAll(u.uid);const ids=Object.keys(docs);
+  const cloud=migrate({equipment:[],exercises:[],sessions:[],activities:[],templates:[],body:[],prefs:S.prefs,strava:{}});
+  ids.forEach(id=>{try{if(typeof docs[id].j==="string")applyChunk(cloud,id,docs[id].j)}catch(e){}});
+  const known={};ids.forEach(id=>{if(typeof docs[id].j==="string")known[id]=hsh(docs[id].j)});
+  const keep=(st)=>{st.strava=S.strava;st.active=S.active;return migrate(st)};
+  const done=(st,hash)=>{S=keep(st);SY={uid:u.uid,ready:true,hash};sySave();saveNow();startWatch();route();pushAll()};
+  if(!ids.length||!cloud.exercises.length){done(S,{});toast("Data HP ini diunggah ke akun Google");return}
+  if(!hasData(S)){done(cloud,known);toast("Data dari akun Google dimuat");return}
+  const cnt=st=>[[st.sessions.length,"sesi"],[st.templates.length,"rutin"],[st.body.length,"catatan tubuh"]].filter(x=>x[0]).map(x=>x.join(" ")).join(", ")||"belum ada sesi";const cs=cnt(cloud),ls=cnt(S);
+  await new Promise(res=>sheet("Gabungkan data?",`<p class="small">Akun Google ini sudah punya data: <b>${cs}</b>. HP ini punya <b>${ls}</b>.</p>
+  <p class="small muted">Gabungkan menyatukan keduanya: sesi, rutin, dan catatan tubuh yang sama tidak dobel, gerakan dengan nama sama disatukan.</p>`,
+  `<button class="btn grow" id="mgCloud">Pakai data akun saja</button><button class="btn btn-primary grow" id="mgYes">Gabungkan</button>`,sc=>{
+    $("#mgYes",sc).onclick=()=>{closeSheet();done(mergeStates(cloud,S),known);toast("Data digabung");res()};
+    $("#mgCloud",sc).onclick=()=>{closeSheet();done(cloud,known);toast("Data dari akun Google dimuat");res()};
+  }));
+}
+async function initAuth(){
+  const fb=await loadFB();
+  fb.onUser(async u=>{
+    CU=u;
+    if(!u){if(unwatch){unwatch();unwatch=null}setSync("off");if(location.hash==="#more")route();return}
+    try{if(SY.uid===u.uid&&SY.ready){startWatch();pushAll()}else await firstSync(u)}catch(e){setSync("err","Gagal ambil data akun: "+(e&&e.code||e.message||e))}
+    if(location.hash==="#more")route();
+  });
+}
+async function signIn(){
+  const b=$("#acIn");if(b){b.disabled=true;b.textContent="Membuka Google…"}
+  try{const fb=await loadFB();if(!AUTHL){AUTHL=true;await initAuth()}await fb.signIn()}
+  catch(e){const c=e&&e.code||"";toast(c==="auth/popup-closed-by-user"||c==="auth/cancelled-popup-request"?"Login dibatalkan":c==="auth/unauthorized-domain"?"Domain belum diizinkan di Firebase (Authentication → Settings)":c==="auth/operation-not-allowed"?"Login Google belum diaktifkan di Firebase":"Login gagal: "+(c||e.message||e),"err");if(b){b.disabled=false;b.textContent="Masuk dengan Google"}}
+}
+function acctCard(){
+  if(!CU)return`<section class="card pad stack"><h2>Akun &amp; sinkron</h2>
+    <p class="small muted">Masuk dengan Google supaya data tersimpan di cloud dan sama di HP, iPad, atau laptop. Data yang sudah ada di HP ini ikut diunggah.</p>
+    <button class="btn btn-primary btn-block" id="acIn">Masuk dengan Google</button></section>`;
+  return`<section class="card pad stack"><div class="row between"><h2>Akun &amp; sinkron</h2><span class="chip green">Masuk</span></div>
+    <div class="row" style="gap:12px">${CU.photo?`<img src="${esc(CU.photo)}" alt="" width="36" height="36" style="border-radius:50%" referrerpolicy="no-referrer">`:""}<div class="grow"><b>${esc(CU.name||"Akun Google")}</b><div class="tiny muted">${esc(CU.email||"")}</div></div></div>
+    <p class="small" id="syncSt">${syncLabel()}</p>
+    <div class="row"><button class="btn grow" id="acSync">Sinkron sekarang</button><button class="btn" id="acOut">Keluar</button></div></section>`;
+}
+function bindAcct(){
+  const i=$("#acIn");if(i)i.onclick=signIn;
+  const y=$("#acSync");if(y)y.onclick=()=>{SY.hash={};pushAll()};
+  const o=$("#acOut");if(o)o.onclick=()=>confirmSheet("Keluar dari akun?","Data tetap ada di HP ini, tapi berhenti tersinkron sampai kamu masuk lagi.","Keluar",async()=>{await pushAll();SY={};sySave();await window.GHFB.signOut()});
+}
+
 /* ================= boot ================= */
 try{const th=localStorage.getItem("gymhub.theme");if(th)document.documentElement.dataset.theme=th}catch(e){}
 loadStore().then(d=>{
@@ -1402,6 +1724,7 @@ loadStore().then(d=>{
   loadLib().then(()=>{if(!$("#scrim"))route()});
   if(S.active&&S.active.timer){clearInterval(TI);TI=setInterval(drawTimer,200)}
   stravaReturn();
+  if(SY.uid){AUTHL=true;initAuth().catch(()=>setSync("err","Modul login gagal dimuat"))}
 });
 if("serviceWorker" in navigator&&location.protocol==="https:"&&/github\.io$/.test(location.hostname)){navigator.serviceWorker.register("sw.js").catch(()=>{})}
 })();
