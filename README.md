@@ -1,16 +1,23 @@
 # Gym Hub
 
-Ruang kerja untuk personal trainer: catat member, asesmen awal, check-in progres, log sesi latihan, template pesan, dan kalkulator fitness.
+Tracker latihan pribadi untuk HP. Dibuat untuk latihan yang mencampur angkat beban di gym dengan floor work atau strength conditioning di mat, termasuk alat yang tidak ada di katalog Hevy atau Strava.
 
-Situs ini statis (satu file `index.html`, tanpa server). Semua data tersimpan di browser perangkat yang dipakai, jadi buat cadangan secara rutin lewat menu **Pengaturan → Unduh cadangan**.
+## Tahap 1 (sekarang)
 
-## Fitur
+- **Latihan**: mulai sesi, tambah gerakan, centang set sekali ketuk, angka sesi sebelumnya terisi otomatis, timer istirahat.
+- **Sesi campuran**: set biasa, superset, circuit, EMOM, AMRAP, dan Tabata dalam satu sesi.
+- **Gerakan dan alat kustom**: lima cara catat (beban × rep, rep saja, waktu, beban × waktu, jarak × waktu), gabung duplikat.
+- **Riwayat dan progres** per gerakan, dengan grafik.
+- **Impor CSV Hevy** dengan pencocokan nama gerakan.
+- **Offline**: PWA dengan service worker. Data tersimpan di IndexedDB di perangkat, dengan cadangan JSON.
 
-- **Member**: daftar aktif/arsip, asesmen awal (BB, TB, body fat, tensi, HR istirahat, skrining kesehatan), BMI/BMR/TDEE otomatis.
-- **Profil member**: check-in berat badan dengan grafik, log sesi (set × rep × kg, volume, RPE), sisa paket PT.
-- **Template pesan**: kode seperti `[NAMA_MEMBER]` dan `[SISA_SESI]` terisi otomatis, siap disalin ke WhatsApp.
-- **Kalkulator**: BMI (Asia-Pasifik), kalori harian, 1RM, susun plate, zona detak jantung, protein, body fat US Navy.
-- **Pengaturan**: profil coach, backup/restore JSON, tema terang/gelap.
+Buka di Safari iPhone, lalu pilih Bagikan → Tambah ke Layar Utama.
+
+## Rencana
+
+1. Login Google dan sinkron antar perangkat (Firebase).
+2. Sinkron ke Strava, mengisi aktivitas Coros yang sudah ada.
+3. Simpan ke Apple Health lewat Shortcuts.
 
 ## Deploy
 
