@@ -13,10 +13,19 @@ Tracker latihan pribadi untuk HP. Dibuat untuk latihan yang mencampur angkat beb
 
 Buka di Safari iPhone, lalu pilih Bagikan → Tambah ke Layar Utama.
 
+## Tambahan
+
+- **Pustaka 873 gerakan** dengan gambar posisi awal/akhir dan instruksi, dari [Free Exercise DB](https://github.com/yuhonas/free-exercise-db) (Unlicense, domain publik).
+- Edit jam mulai, tanggal, dan durasi sesi; ubah urutan gerakan; edit set sesi lama.
+- Timer istirahat, countdown/stopwatch untuk set berbasis waktu, timer EMOM, AMRAP, dan Tabata.
+- Catatan rasa setelah latihan (RPE, energi, pegal) dan cek pegal keesokan harinya.
+- Beranda: beban latihan 7 hari (durasi × RPE sesi), set per otot, tren energi.
+- Ambil aktivitas Strava langsung dari browser. Client ID dan Secret hanya disimpan di perangkat.
+
 ## Rencana
 
 1. Login Google dan sinkron antar perangkat (Firebase).
-2. Sinkron ke Strava, mengisi aktivitas Coros yang sudah ada.
+2. Kirim sesi ke Strava, mengisi aktivitas Coros yang sudah ada.
 3. Simpan ke Apple Health lewat Shortcuts.
 
 ## Deploy
