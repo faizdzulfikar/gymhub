@@ -1144,7 +1144,7 @@ function bodySheet(r){
     $("#bOk",sc).onclick=()=>{const o=r||{id:uid()};const dv=$("#bD",sc).value;const t=dv?new Date(dv+"T08:00:00").getTime():Date.now();let any=false;
       BODYM.forEach(([k])=>{const v=num($("#b_"+k,sc).value);if(v!=null){o[k]=v;any=true}else delete o[k]});
       if(!any){toast("Isi minimal satu angka");return}
-      o.t=t;if(!r)S.body.push(o);save();closeSheet();toast("Tersimpan");route()};
+      o.t=t;if(!r)S.body.push(o);save();closeSheet();toast("Tersimpan");route();if(S.prefs.health&&S.prefs.healthBody)healthBody(o)};
     const del=$("#bDel",sc);del&&(del.onclick=()=>{S.body=S.body.filter(x=>x!==r);save();closeSheet();route()});
   });
 }
@@ -1250,9 +1250,10 @@ function renderSession(id){
   <div class="grid2"><button class="btn" id="eTime">Edit waktu & durasi</button><button class="btn" id="eSets">Edit gerakan & set</button></div>
   <div class="row"><button class="btn btn-soft grow" id="again">Ulangi sesi ini</button><button class="btn btn-danger" id="delS">Hapus</button></div>
   <button class="btn" id="asTpl">Simpan sebagai rutin</button>
-  ${stravaCard(se)}`;
+  ${stravaCard(se)}${healthCard(se)}`;
   $("#asTpl").onclick=()=>tplFromSession(se);
   const sp=$("#stPush");if(sp)sp.onclick=()=>stravaPush(se,false);
+  const hp=$("#hlPush");if(hp)hp.onclick=()=>{healthWorkout(se);se.health=Date.now();save();setTimeout(route,800)};
   $("#shareBtn").onclick=()=>shareSheet(se);
   $("#eTime").onclick=()=>timeSheet(se,true);
   $("#eSets").onclick=()=>editSession(se);
@@ -1484,7 +1485,7 @@ function stravaDesc(se){
 function stravaCard(se){
   if(!S.strava.refresh)return"";const x=se.strava;
   return`<section class="card pad stack"><div class="row between"><h2>Strava</h2>${x?`<span class="chip green">${x.mode==="update"?"Diperbarui":"Terkirim"}</span>`:""}</div>
-  <p class="small muted">${x?`${x.mode==="update"?"Aktivitas dari jam kamu":"Aktivitas baru"} sudah berisi daftar gerakan dan set. <a href="https://www.strava.com/activities/${x.id}" target="_blank" rel="noopener">Buka di Strava</a>`:"Daftar gerakan dan set dikirim ke Strava. Kalau Coros sudah mengunggah latihan ini, aktivitas itu yang diperbarui supaya tidak dobel."}</p>
+  <p class="small muted">${x?`${x.mode==="update"?"Aktivitas dari jam kamu":"Aktivitas baru"} sudah berisi daftar gerakan dan set. <a href="https://www.strava.com/activities/${x.id}" target="_blank" rel="noopener">Buka di Strava</a>`:"Dibuat aktivitas Angkat beban berisi daftar gerakan dan set. Kalau kamu memakai Coros dan latihannya sudah ada di Strava, aktivitas itu yang diperbarui supaya tidak dobel."}</p>
   <button class="btn ${x?"":"btn-primary"} btn-block" id="stPush">${x?"Kirim ulang":"Kirim ke Strava"}</button></section>`;
 }
 const localIso=t=>{const d=new Date(t);return`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`};
@@ -1500,8 +1501,6 @@ async function stravaPush(se,create){
       if(!r.ok)return fail("Gagal membaca aktivitas Strava ("+r.status+")");
       const arr=(await r.json()).filter(a=>/WeightTraining|Workout|Crossfit|HighIntensityIntervalTraining/.test(a.sport_type||a.type)).map(a=>({a,d:Math.abs(Date.parse(a.start_date)-se.start)})).filter(x=>x.d<2*36e5).sort((x,y)=>x.d-y.d);
       if(arr.length){id=arr[0].a.id;mode="update"}
-      else{if(b){b.disabled=false;b.textContent="Kirim ke Strava"}
-        return confirmSheet("Belum ada aktivitas dari jam",`Strava belum punya latihan beban di sekitar ${ftime(se.start)}. Kalau Coros belum sinkron, tunggu sebentar lalu kirim lagi. Atau buat aktivitas baru sekarang.`,"Buat aktivitas baru",()=>stravaPush(se,true))}
     }
     let r;
     if(id)r=await fetch(`https://www.strava.com/api/v3/activities/${id}`,{method:"PUT",headers:{...H,"Content-Type":"application/json"},body:JSON.stringify({name,description})});
@@ -1512,6 +1511,53 @@ async function stravaPush(se,create){
     const j=await r.json();se.strava={id:j.id,mode,at:Date.now()};save();
     toast(mode==="update"?"Aktivitas Coros di Strava diperbarui":"Aktivitas baru dibuat di Strava");route();
   }catch(e){fail(e.message||"Gagal mengirim ke Strava")}
+}
+/* Apple Health: a web app cannot write HealthKit, so it hands JSON to an iOS Shortcut named "Gym Hub Health" that runs Log Workout / Log Health Sample. */
+const HL_NAME="Gym Hub Health";
+const hlDate=t=>{const d=new Date(t);return`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`};
+function runShortcut(o){location.href=`shortcuts://run-shortcut?name=${encodeURIComponent(HL_NAME)}&input=text&text=${encodeURIComponent(JSON.stringify(o))}`}
+function healthWorkout(se){
+  const end=se.end||se.start+36e5,min=Math.max(1,Math.round((end-se.start)/6e4));
+  const bw=S.body.filter(x=>x.w).sort((a,b)=>b.t-a.t)[0];const kg=bw?bw.w:75;
+  const kcal=Math.round(5*kg*min/60*((se.feel&&se.feel.rpe)?0.6+se.feel.rpe*0.06:1));
+  runShortcut({k:"workout",name:se.title,start:hlDate(se.start),end:hlDate(end),min,kcal});
+}
+function healthBody(o){const x={k:"body",date:hlDate(o.t)};["w","fat","waist"].forEach(f=>{if(o[f]!=null)x[f]=o[f]});runShortcut(x)}
+function healthCard(se){
+  if(!S.prefs.health)return"";
+  return`<section class="card pad stack"><div class="row between"><h2>Apple Health</h2>${se.health?`<span class="chip green">Dikirim</span>`:""}</div>
+  <p class="small muted">Dicatat sebagai Traditional Strength Training lewat Shortcut “${HL_NAME}”.${se.health?" Terakhir dikirim "+fday(se.health)+" "+ftime(se.health)+".":""}</p>
+  <button class="btn ${se.health?"":"btn-primary"} btn-block" id="hlPush">${se.health?"Kirim ulang":"Simpan ke Apple Health"}</button></section>`;
+}
+function healthMore(){
+  const on=!!S.prefs.health;
+  return`<section class="card pad stack"><div class="row between"><h2>Apple Health</h2>${on?`<span class="chip green">Aktif</span>`:""}</div>
+  <p class="small muted">Latihan dan berat badan bisa masuk ke Apple Health lewat app Shortcuts di iPhone. Buat Shortcut-nya sekali, lalu aktifkan di sini.</p>
+  <button class="btn btn-block" id="hlHow">Cara membuat Shortcut</button>
+  <div class="seg" id="hlOn"><button data-h="0" aria-pressed="${!on}">Mati</button><button data-h="1" aria-pressed="${on}">Aktif</button></div>
+  ${on?`<label class="row" style="gap:10px"><input type="checkbox" id="hlBody" ${S.prefs.healthBody?"checked":""} style="width:auto"><span class="small">Kirim berat badan otomatis setiap kali dicatat</span></label>
+  <button class="btn btn-sm" id="hlTest">Tes kirim berat badan terakhir</button>`:""}</section>`;
+}
+function bindHealth(){
+  const h=$("#hlHow");if(h)h.onclick=healthHow;
+  $$("#hlOn [data-h]").forEach(b=>b.onclick=()=>{S.prefs.health=b.dataset.h==="1";if(S.prefs.health&&S.prefs.healthBody==null)S.prefs.healthBody=true;save();renderMore()});
+  const c=$("#hlBody");if(c)c.onchange=()=>{S.prefs.healthBody=c.checked;save()};
+  const t=$("#hlTest");if(t)t.onclick=()=>{const l=S.body.slice().sort((a,b)=>b.t-a.t)[0];if(!l)return toast("Belum ada catatan berat badan");healthBody(l)};
+}
+function healthHow(){
+  sheet("Shortcut Apple Health",`<p class="small">Buka app <b>Shortcuts</b> di iPhone, tekan <b>+</b>, beri nama persis <span class="code">${HL_NAME}</span>. Lalu tambahkan aksi berikut berurutan:</p>
+  <ol class="steps small">
+  <li><b>Get Dictionary from Input</b>. Inputnya: Shortcut Input. Di pengaturan Shortcut (ikon ⓘ), nyalakan <b>Receive Text</b>.</li>
+  <li><b>Get Dictionary Value</b> untuk key <span class="code">k</span>.</li>
+  <li><b>If</b> Dictionary Value <b>is</b> <span class="code">workout</span>:
+    <ul><li>Ambil value <span class="code">start</span>, <span class="code">end</span>, dan <span class="code">kcal</span> dengan Get Dictionary Value (tiga kali).</li>
+    <li><b>Log Workout</b>: Type <b>Traditional Strength Training</b>, Start = start, End = end, Active Energy = kcal.</li></ul></li>
+  <li><b>Otherwise</b>:
+    <ul><li>Get Dictionary Value <span class="code">w</span> lalu <b>Log Health Sample</b>: Type <b>Weight</b>, Value = w, Unit kg, Date = value <span class="code">date</span>.</li>
+    <li>Opsional: sama untuk <span class="code">fat</span> (Body Fat Percentage) dan <span class="code">waist</span> (Waist Circumference, cm).</li></ul></li>
+  <li><b>End If</b>, lalu <b>Open URLs</b> <span class="code">${esc(location.origin+location.pathname)}</span> supaya kembali ke Gym Hub.</li></ol>
+  <p class="tiny muted">Pertama kali jalan, iPhone akan minta izin menulis ke Health. Pilih Izinkan. Kalori adalah perkiraan dari durasi, berat badan, dan RPE sesi.</p>`,
+  `<button class="btn btn-primary btn-block" data-close>Mengerti</button>`);
 }
 async function stravaReturn(){
   const p=new URLSearchParams(location.search);
@@ -1540,6 +1586,7 @@ function renderMore(){
     <div class="grid2"><div class="field"><label for="stId">Client ID</label><input type="text" inputmode="numeric" id="stId" value="${esc(s.clientId||"")}"></div><div class="field"><label for="stSec">Client Secret</label><input type="password" id="stSec" value="${esc(s.clientSecret||"")}" autocomplete="off"></div></div>
     <button class="btn btn-primary btn-block" id="stGo">Hubungkan Strava</button>`}
   </section>
+  ${healthMore()}
   <section class="card pad stack"><h2>Impor dari Hevy</h2>
     <p class="small muted">Di Hevy: Profil → Settings → Export &amp; Import Data → Export Workouts. Pilih file CSV-nya di sini. Sesi yang sudah pernah diimpor akan dilewati.</p>
     <label class="btn btn-primary btn-block" for="hevyFile">Pilih file CSV Hevy</label><input type="file" id="hevyFile" accept=".csv,text/csv" hidden>
@@ -1561,7 +1608,7 @@ function renderMore(){
   </section>
   <p class="tiny muted">Gambar dan pustaka gerakan: Free Exercise DB (domain publik).</p>`;
   $("#plOpen").onclick=()=>plateSheet(null);
-  bindAcct();
+  bindAcct();bindHealth();
   $("#eqNew").onclick=()=>eqSheet();$$("[data-eq]").forEach(b=>b.onclick=()=>eqSheet(eqById(b.dataset.eq)));
   $("#dInfo").textContent=`${S.sessions.length} sesi · ${S.activities.length} aktivitas Strava · ${S.exercises.length} gerakan · ${S.equipment.length} alat`;
   $("#pRest").oninput=e=>{S.prefs.rest=num(e.target.value)??90;save()};
@@ -1590,6 +1637,22 @@ function parseHevyDate(s){
   if(m&&MON[m[2].toLowerCase()]!=null)return new Date(+m[3],MON[m[2].toLowerCase()],+m[1],+m[4],+m[5]).getTime();
   const t=Date.parse(s);return isNaN(t)?null:t;
 }
+/* Hevy exercise titles -> open Free Exercise DB entries. Our own mapping (names only); Hevy's database itself is not copied. */
+const HEVY_FIX={"bench press (barbell)":"Barbell_Bench_Press_-_Medium_Grip","incline bench press (dumbbell)":"Incline_Dumbbell_Press","push up":"Pushups","goblet squat (dumbbell)":"Goblet_Squat","leg press (machine)":"Leg_Press","lying leg curl (machine)":"Lying_Leg_Curls","romanian deadlift (dumbbell)":"Stiff-Legged_Dumbbell_Deadlift","sumo deadlift (barbell)":"Sumo_Deadlift","bulgarian split squat":"Split_Squat_with_Dumbbells","bulgarian split squat (dumbbell)":"Split_Squat_with_Dumbbells","walking lunge (dumbbell)":"Dumbbell_Lunges","walking lunge":"Bodyweight_Walking_Lunge","pendlay row (barbell)":"Bent_Over_Barbell_Row","dumbbell row":"One-Arm_Dumbbell_Row","bent over row (dumbbell)":"One-Arm_Dumbbell_Row","pull up":"Pullups","pull up (weighted)":"Weighted_Pull_Ups","pull up (assisted)":"Band_Assisted_Pull-Up","hammer curl (dumbbell)":"Hammer_Curls","skullcrusher (barbell)":"EZ-Bar_Skullcrusher","skullcrusher (dumbbell)":"Lying_Dumbbell_Tricep_Extension","bench dip":"Bench_Dips","crunch":"Crunches","jump rope":"Rope_Jumping","glute bridge":"Butt_Lift_Bridge","hip abduction (machine)":"Thigh_Abductor","hip adduction (machine)":"Thigh_Adductor","side plank":"Side_Bridge","chest fly (dumbbell)":"Dumbbell_Flyes","cable fly crossovers":"Cable_Crossover","rear delt reverse fly (dumbbell)":"Reverse_Flyes","rear delt reverse fly (cable)":"Cable_Rear_Delt_Fly","lat pulldown (cable)":"Wide-Grip_Lat_Pulldown","seated cable row - v grip (cable)":"Seated_Cable_Rows","rowing machine":"Rowing_Stationary","kettlebell swing":"One-Arm_Kettlebell_Swings","ab wheel":"Ab_Roller","bicep curl (barbell)":"Barbell_Curl","ez bar biceps curl":"EZ-Bar_Curl","bench press (smith machine)":"Smith_Machine_Bench_Press","squat (smith machine)":"Smith_Machine_Squat","sit up":"Sit-Up","seated calf raise":"Seated_Calf_Raise","seated calf raise (machine)":"Seated_Calf_Raise","t bar row":"T-Bar_Row_with_Handle","russian twist (weighted)":"Russian_Twist","russian twist (bodyweight)":"Russian_Twist","triceps extension (dumbbell)":"Standing_Dumbbell_Triceps_Extension","pullover (dumbbell)":"Straight-Arm_Dumbbell_Pullover"};
+const HEVY_EQ={barbell:["barbell","barbel"],dumbbell:["dumbbell","dumbel"],cable:["cable","kabel"],machine:["machine","mesin"],"smith machine":["machine","mesin"],"machine plates":["machine","mesin"],"pec deck":["machine","mesin"],kettlebell:["kettlebells","kettlebell"],bodyweight:["body only","bodyweight"],assisted:["machine","mesin"],band:["bands","lainnya"],"ez bar":["e-z curl bar","barbel"]};
+const HSYN={curl:["curl","curls"],bicep:["bicep","biceps"],biceps:["bicep","biceps"],tricep:["tricep","triceps"],triceps:["tricep","triceps"],overhead:["overhead","military","shoulder"],up:["up","ups","pullups","pushups"],fly:["fly","flyes","flye"],farmers:["farmer","farmers"],walk:["walk","walking"]};
+function hevyLib(title){
+  const fx=HEVY_FIX[title.trim().toLowerCase()];if(fx&&LIBBY[fx])return fx;if(!LIB||!LIB.length)return null;
+  const m=title.match(/^(.*?)\s*(?:\(([^)]*)\))?\s*$/),par=(m[2]||"").toLowerCase(),eq=HEVY_EQ[par]&&HEVY_EQ[par][0];
+  const tk=x=>x.toLowerCase().replace(/[^a-z0-9]+/g," ").split(" ").filter(t=>t&&!["with","the","a","on","and","to","of"].includes(t));
+  const bt=tk(m[1]);if(!bt.length)return null;let best=null,bs=0;
+  LIB.forEach(l=>{const nt=tk(l.name),ns=new Set(nt);let hit=0;
+    bt.forEach(t=>{const vs=HSYN[t]||[t,t+"s",t+"es",t.replace(/s$/,"")];if(vs.some(v=>ns.has(v)))hit++});if(!hit)return;
+    let sc=hit/bt.length-0.08*Math.max(0,nt.length-hit-1);if(eq)sc+=l.eq===eq?0.35:-0.25;if(!["strength","plyometrics","cardio","strongman"].includes(l.cat))sc-=0.3;
+    if(sc>bs){bs=sc;best=l.id}});
+  return bs>=0.9?best:null;
+}
+function hevyEqId(title){const m=title.match(/\(([^)]*)\)\s*$/);const k=m&&HEVY_EQ[m[1].toLowerCase()];if(!k)return"";const e=S.equipment.find(x=>x.kind===k[1]);return e?e.id:""}
 async function hevyPrepare(text){
   await loadLib();
   const rows=parseCSV(text.replace(/^﻿/,""));if(rows.length<2){toast("CSV kosong");return}
@@ -1611,7 +1674,9 @@ async function hevyPrepare(text){
   const guess=st=>st.d?"dt":st.t&&st.w?"wt":st.t&&!st.r?"t":st.w?"wr":"r";
   const names=[...exNames.keys()].sort();
   const norm=x=>x.toLowerCase().replace(/\s*\([^)]*\)\s*/g," ").replace(/[^a-z0-9]+/g," ").trim();
-  const auto=n=>{const e=S.exercises.find(x=>x.name.toLowerCase()===n.toLowerCase())||S.exercises.find(x=>norm(x.name)===norm(n));if(e)return e.id;const l=(LIB||[]).find(x=>norm(x.name)===norm(n));return l?"lib:"+l.id:"__new"};
+  const autoC={};const auto=n=>{if(n in autoC)return autoC[n];const e=S.exercises.find(x=>x.name.toLowerCase()===n.toLowerCase());if(e)return autoC[n]=e.id;const lid=hevyLib(n);
+    if(lid){const mine=S.exercises.find(x=>x.libId===lid);return autoC[n]=mine?mine.id:"lib:"+lid}
+    const e2=!/\(/.test(n)&&S.exercises.find(x=>norm(x.name)===norm(n));return autoC[n]=e2?e2.id:"__new"};
   const opts=S.exercises.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join("");
   sheet("Impor Hevy",`<div class="kv"><div><b class="num">${fresh.length}</b><span>Sesi baru</span></div><div><b class="num">${names.length}</b><span>Gerakan</span></div><div><b class="num">${fresh.reduce((a,[,s])=>a+s.rows.length,0)}</b><span>Set</span></div></div>
   <p class="small muted">Cocokkan nama gerakan Hevy dengan gerakanmu. “Buat baru” menambahkannya dengan nama yang sama.</p>
@@ -1621,8 +1686,8 @@ async function hevyPrepare(text){
     $("#hvGo",sc).onclick=()=>{
       const map={};
       names.forEach((n,i)=>{let v=$(`[data-map="${i}"]`,sc).value;
-        if(v==="__new"){const e={id:uid(),name:n,eqId:"",mode:guess(exNames.get(n)),muscles:[],rest:90};S.exercises.push(e);v=e.id}
-        else if(v.startsWith("lib:")){v=fromLib(v.slice(4)).id}
+        if(v==="__new"){const e={id:uid(),name:n,eqId:hevyEqId(n),mode:guess(exNames.get(n)),muscles:[],rest:90};S.exercises.push(e);v=e.id}
+        else if(v.startsWith("lib:")){const lid=v.slice(4),had=S.exercises.some(x=>x.libId===lid);const e=fromLib(lid);if(!had){e.mode=guess(exNames.get(n));const q=hevyEqId(n);if(q)e.eqId=q}v=e.id}
         map[n]=v});
       fresh.forEach(([key,s])=>{
         const blocks=[];let cur=null;
