@@ -22,6 +22,13 @@ Buka di Safari iPhone, lalu pilih Bagikan → Tambah ke Layar Utama.
 - Beranda: beban latihan 7 hari (durasi × RPE sesi), set per otot, tren energi.
 - Ambil aktivitas Strava langsung dari browser. Client ID dan Secret hanya disimpan di perangkat.
 
+## Desain dan fitur Hevy-style
+
+- Tampilan Graphite dengan mode terang, gelap, atau ikut HP.
+- Beranda: total volume, sesi, jam, dan set minggu ini; heatmap otot depan dan belakang; daftar Personal Record.
+- Layar latihan padat: durasi, volume, set, PR, dan kolom RPE per set. Set yang memecahkan rekor langsung ditandai.
+- Kartu ringkasan 1080 × 1350 untuk dibagikan dari halaman sesi.
+
 ## Rencana
 
 1. Login Google dan sinkron antar perangkat (Firebase).

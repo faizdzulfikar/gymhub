@@ -5,8 +5,8 @@
   "start_url": "./#train",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#151920",
-  "theme_color": "#151920",
+  "background_color": "#0a0c0f",
+  "theme_color": "#0a0c0f",
   "icons": [
     {
       "src": "icon.svg",

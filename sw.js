@@ -1,5 +1,5 @@
 // Gym Hub offline cache: app shell from network first, cache as fallback.
-const C = "gymhub-v2";
+const C = "gymhub-v3";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./exercises-lib.json"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
