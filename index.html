@@ -69,6 +69,15 @@ a{color:inherit}
 .brand{display:flex;align-items:center;gap:8px;font-family:var(--f-display);font-weight:800;font-size:22px;text-transform:uppercase;letter-spacing:.01em}
 .brand span{color:var(--accent)}
 .brand svg{width:30px;height:30px}
+.acslot{display:flex;align-items:center;margin-left:12px}
+.acct{position:relative;display:block;width:36px;height:36px;flex:none;text-decoration:none}
+.acct .av{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--accent);color:#fff;font:800 16px var(--f-display);box-shadow:0 0 0 2px var(--bg)}
+.acct .av img{position:absolute;inset:0;width:36px;height:36px;border-radius:50%;object-fit:cover}
+.acct .dot{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 2px var(--bg);background:var(--ink-3)}
+.acct .dot.ok{background:#22a35a}.acct .dot.err{background:var(--accent)}.acct .dot.off{background:#d99a1e}
+.acct .dot.busy{background:#d99a1e;animation:acp 1s ease-in-out infinite alternate}
+@keyframes acp{to{opacity:.35}}
+
 h1{font-family:var(--f-display);font-weight:800;font-size:34px;line-height:.95;margin:0;text-transform:uppercase;text-wrap:balance;letter-spacing:.005em}
 h2{font-family:var(--f-display);font-weight:800;font-size:20px;line-height:1.05;margin:0;text-transform:uppercase;letter-spacing:.02em}
 h3{font-size:16px;margin:0;font-weight:700}
@@ -633,7 +642,7 @@ function sheet(title,body,foot,onMount){
 }
 function closeSheet(){$("#sheetRoot").innerHTML=""}
 function confirmSheet(title,msg,ok,fn){sheet(title,`<p>${esc(msg)}</p>`,`<button class="btn grow" data-close>Batal</button><button class="btn btn-primary grow" id="okC">${esc(ok)}</button>`,sc=>{$("#okC",sc).onclick=()=>{closeSheet();fn()}})}
-const top=(title,back)=>`<div class="top">${back?`<a class="btn btn-ghost icon" href="${back}" aria-label="Kembali"><svg><use href="#i-back"/></svg></a>`:`<div class="brand"><svg><use href="#i-logo"/></svg>Gym<span>Hub</span></div>`}${title?`<h2 class="grow" style="text-align:${back?"left":"right"}">${esc(title)}</h2>`:""}</div>`;
+const top=(title,back)=>`<div class="top">${back?`<a class="btn btn-ghost icon" href="${back}" aria-label="Kembali"><svg><use href="#i-back"/></svg></a>`:`<div class="brand"><svg><use href="#i-logo"/></svg>Gym<span>Hub</span></div>`}${title?`<h2 class="grow" style="text-align:${back?"left":"right"}">${esc(title)}</h2>`:""}${back?"":`<span class="acslot">${acctBadge()}</span>`}</div>`;
 function scale(id,labels,val,cols){return `<div class="scale" id="${id}" style="grid-template-columns:repeat(${cols||labels.length},1fr)">${labels.map((l,i)=>`<button type="button" data-v="${i}" aria-pressed="${val===i}">${esc(l)}</button>`).join("")}</div>`}
 function bindScale(root,id,cb){$$(`#${id} button`,root).forEach(b=>b.onclick=()=>{$$(`#${id} button`,root).forEach(x=>x.setAttribute("aria-pressed",x===b));cb(+b.dataset.v)})}
 
@@ -681,7 +690,7 @@ function renderHome(){
   const delta=L.vol>0?Math.round((W.vol-L.vol)/L.vol*100):null;
   const h=new Date().getHours(),greet=h<11?"Selamat pagi":h<15?"Selamat siang":h<18?"Selamat sore":"Selamat malam";
   const recent=S.sessions.slice().sort((a,b)=>b.start-a.start).slice(0,3);
-  $("#view").innerHTML=`<div class="top"><div><div class="eyebrow">${new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long"})}</div><h1 style="font-size:30px">${greet}</h1></div><div class="brand" aria-label="Gym Hub"><svg><use href="#i-logo"/></svg></div></div>
+  $("#view").innerHTML=`<div class="top"><div><div class="eyebrow">${new Date().toLocaleDateString("id-ID",{weekday:"long",day:"numeric",month:"long"})}</div><h1 style="font-size:30px">${greet}</h1></div><span class="acslot">${acctBadge()||`<div class="brand" aria-label="Gym Hub"><svg><use href="#i-logo"/></svg></div>`}</span></div>
   <section class="hero"><div class="row between"><span class="eyebrow">Volume minggu ini</span>${delta!=null?`<span class="delta ${delta>=0?"up":"down"}">${delta>=0?"▲":"▼"} ${Math.abs(delta)}% vs minggu lalu</span>`:""}</div>
     <div class="hero-big num">${fmt(W.vol,0)}<small>kg</small></div>
     <div class="days" aria-label="Hari latihan minggu ini">${days}</div>
@@ -1603,7 +1612,7 @@ function renderMore(){
   :`<ol class="steps small">
     <li>Buka <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">strava.com/settings/api</a> lalu buat aplikasi. Nama bebas, misalnya “Gym Hub Faiz”.</li>
     <li>Isi <b>Authorization Callback Domain</b> dengan <span class="code">${esc(location.hostname||"faizdzulfikar.github.io")}</span>.</li>
-    <li>Salin <b>Client ID</b> dan <b>Client Secret</b> ke kolom di bawah. Keduanya hanya disimpan di HP ini.</li>
+    <li>Salin <b>Client ID</b> dan <b>Client Secret</b> ke kolom di bawah. Kalau kamu login Google, koneksi ini ikut tersimpan di akunmu, jadi perangkat lain langsung terhubung.</li>
     <li>Tekan Hubungkan, lalu izinkan di halaman Strava.</li></ol>
     <div class="grid2"><div class="field"><label for="stId">Client ID</label><input type="text" inputmode="numeric" id="stId" value="${esc(s.clientId||"")}"></div><div class="field"><label for="stSec">Client Secret</label><input type="password" id="stSec" value="${esc(s.clientSecret||"")}" autocomplete="off"></div></div>
     <button class="btn btn-primary btn-block" id="stGo">Hubungkan Strava</button>`}
@@ -1640,7 +1649,7 @@ function renderMore(){
   const go=$("#stGo");go&&(go.onclick=()=>{const id=$("#stId").value.trim(),sec=$("#stSec").value.trim();if(!/^\d+$/.test(id)||sec.length<20){toast("Client ID harus angka dan Secret 40 karakter");return}
     s.clientId=id;s.clientSecret=sec;save();saveNow().then(()=>{location.href=`https://www.strava.com/oauth/authorize?client_id=${id}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri())}&approval_prompt=auto&scope=read,activity:read_all,activity:write&state=gymhub`})});
   const sy=$("#stSync");sy&&(sy.onclick=async()=>{sy.disabled=true;sy.textContent="Mengambil…";try{const n=await stravaSync(false);toast(n?`${n} aktivitas baru`:"Tidak ada aktivitas baru")}catch(e){toast(e.message)}renderMore()});
-  const off=$("#stOff");off&&(off.onclick=()=>confirmSheet("Putuskan Strava?","Token dan kunci Strava dihapus dari HP ini. Aktivitas yang sudah diambil tetap ada di riwayat.","Putuskan",()=>{S.strava={};save();renderMore()}));
+  const off=$("#stOff");off&&(off.onclick=()=>confirmSheet("Putuskan Strava?",(CU?"Koneksi Strava dihapus dari semua perangkat yang login dengan akun Google ini.":"Token dan kunci Strava dihapus dari HP ini.")+" Aktivitas yang sudah diambil tetap ada di riwayat.","Putuskan",()=>{S.strava={};save();renderMore()}));
   $("#expBtn").onclick=()=>{try{const data={app:"gym-hub",exportedAt:new Date().toISOString(),...S,strava:{}};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:"application/json"}));a.download=`gymhub-${isoDate(Date.now())}.json`;document.body.appendChild(a);a.click();a.remove();toast("Cadangan diunduh")}catch(e){toast("Unduhan tidak bisa di sini")}};
   $("#impFile").onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if(!Array.isArray(d.sessions)||!Array.isArray(d.exercises))throw 0;confirmSheet("Pulihkan cadangan?",`Data sekarang diganti dengan ${d.sessions.length} sesi dari file.`,"Pulihkan",()=>{const keep=S.strava;S=migrate({equipment:d.equipment||[],exercises:d.exercises,sessions:d.sessions,activities:d.activities||[],active:null,prefs:d.prefs,strava:keep});save();toast("Cadangan dipulihkan");renderMore()})}catch(err){toast("File bukan cadangan Gym Hub")}})};
   $("#hevyFile").onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(hevyPrepare).catch(()=>toast("File tidak bisa dibaca"))};
@@ -1741,13 +1750,14 @@ let SY=(()=>{try{return JSON.parse(localStorage.getItem("gymhub.sync"))||{}}catc
 function sySave(){try{localStorage.setItem("gymhub.sync",JSON.stringify(SY))}catch(e){}}
 function hsh(str){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<str.length;i++){const c=str.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return(h2>>>0).toString(36)+(h1>>>0).toString(36)}
 const mon=t=>{const d=new Date(t);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")};
-/* Cloud layout: users/{uid}/chunks/{id}, each {j: JSON text, rev, dev}. "core" = gear, exercises, routines, body, prefs; "s-YYYY-MM" = sessions by month; "a-YYYY-MM" = Strava activities by month. The live session and Strava keys stay on the device. */
+/* Cloud layout: users/{uid}/chunks/{id}, each {j: JSON text, rev, dev}. "core" = gear, exercises, routines, body, prefs; "s-YYYY-MM" = sessions by month; "a-YYYY-MM" = Strava activities by month; "x" = Strava connection (keys + tokens), protected by the uid-only rules. The live session stays on the device. */
 function chunksOf(st){
   const o={core:JSON.stringify({equipment:st.equipment,exercises:st.exercises,templates:st.templates,body:st.body,prefs:st.prefs})};
   const g={};st.sessions.forEach(x=>{(g["s-"+mon(x.start)]=g["s-"+mon(x.start)]||[]).push(x)});(st.activities||[]).forEach(x=>{(g["a-"+mon(x.start)]=g["a-"+mon(x.start)]||[]).push(x)});
-  Object.keys(g).forEach(k=>o[k]=JSON.stringify(g[k]));return o;
+  Object.keys(g).forEach(k=>o[k]=JSON.stringify(g[k]));o.x=JSON.stringify(st.strava||{});return o;
 }
 function applyChunk(st,id,j){
+  if(id==="x"){st.strava=j?JSON.parse(j):{};return}
   if(id==="core"){const c=JSON.parse(j);["equipment","exercises","templates","body","prefs"].forEach(k=>{if(c[k]!=null)st[k]=c[k]});return}
   const k=id[0]==="s"?"sessions":id[0]==="a"?"activities":null;if(!k)return;
   const m=id.slice(2),list=j?JSON.parse(j):[];
@@ -1758,7 +1768,14 @@ function loadFB(){
   FBP=new Promise((res,rej)=>{if(window.GHFB){window.GHFB.init(FB_CFG);return res(window.GHFB)}const sc=document.createElement("script");sc.src="fb.js";sc.onload=()=>{try{window.GHFB.init(FB_CFG);res(window.GHFB)}catch(e){rej(e)}};sc.onerror=()=>{FBP=null;rej(new Error("Modul login gagal dimuat. Cek koneksi."))};document.head.appendChild(sc)});
   return FBP;
 }
-function setSync(st,err){SST={st,at:st==="ok"?Date.now():SST.at,err:err||""};const el=$("#syncSt");if(el)el.innerHTML=syncLabel()}
+function setSync(st,err){SST={st,at:st==="ok"?Date.now():SST.at,err:err||""};const el=$("#syncSt");if(el)el.innerHTML=syncLabel();paintBadge()}
+function acctBadge(){
+  if(!CU)return"";const st=SST.st,dot=st==="ok"?"ok":st==="err"?"err":st==="offline"?"off":"busy";
+  const lab={ok:"Tersinkron",err:"Gagal sinkron",off:"Offline",busy:"Menyinkronkan"}[dot];
+  const ini=esc(((CU.name||CU.email||"G").trim()[0]||"G").toUpperCase());
+  return`<a class="acct" href="#more" aria-label="Masuk sebagai ${esc(CU.name||CU.email||"akun Google")} · ${lab}" title="${esc(CU.email||"")} · ${lab}"><span class="av">${ini}${CU.photo?`<img src="${esc(CU.photo)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:""}</span><i class="dot ${dot}"></i></a>`;
+}
+function paintBadge(){const html=acctBadge();document.querySelectorAll(".acslot").forEach(el=>{if(html)el.innerHTML=html;else if(el.querySelector(".acct"))el.innerHTML=el.closest(".top")&&el.closest(".top").querySelector("h1")?`<div class="brand" aria-label="Gym Hub"><svg><use href="#i-logo"/></svg></div>`:""})}
 function syncLabel(){const{st,at,err}=SST;if(st==="busy")return"Menyinkronkan…";if(st==="err")return`<span style="color:var(--accent)">${esc(err||"Gagal sinkron")}</span>`;if(st==="offline")return"Offline. Perubahan dikirim saat online lagi.";if(st==="ok")return`Tersinkron ${ftime(at)}`;return"Menyambung…"}
 function syncSoon(){if(!CU||!SY.ready)return;clearTimeout(syncT);syncT=setTimeout(pushAll,1500)}
 async function pushAll(){
@@ -1807,7 +1824,7 @@ async function firstSync(u){
   const cloud=migrate({equipment:[],exercises:[],sessions:[],activities:[],templates:[],body:[],prefs:S.prefs,strava:{}});
   ids.forEach(id=>{try{if(typeof docs[id].j==="string")applyChunk(cloud,id,docs[id].j)}catch(e){}});
   const known={};ids.forEach(id=>{if(typeof docs[id].j==="string")known[id]=hsh(docs[id].j)});
-  const keep=(st)=>{st.strava=S.strava;st.active=S.active;return migrate(st)};
+  const keep=(st)=>{if(S.strava&&S.strava.refresh)st.strava=S.strava;st.active=S.active;return migrate(st)};
   const done=(st,hash)=>{S=keep(st);SY={uid:u.uid,ready:true,hash};sySave();saveNow();startWatch();route();pushAll()};
   if(!ids.length||!cloud.exercises.length){done(S,{});toast("Data HP ini diunggah ke akun Google");return}
   if(!hasData(S)){done(cloud,known);toast("Data dari akun Google dimuat");return}
@@ -1822,7 +1839,7 @@ async function firstSync(u){
 async function initAuth(){
   const fb=await loadFB();
   fb.onUser(async u=>{
-    CU=u;
+    CU=u;paintBadge();
     if(!u){if(unwatch){unwatch();unwatch=null}setSync("off");if(location.hash==="#more")route();return}
     try{if(SY.uid===u.uid&&SY.ready){startWatch();pushAll()}else await firstSync(u)}catch(e){setSync("err","Gagal ambil data akun: "+(e&&e.code||e.message||e))}
     if(location.hash==="#more")route();
